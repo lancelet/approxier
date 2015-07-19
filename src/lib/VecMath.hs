@@ -1,6 +1,6 @@
 {-|
 Module      : VecMath
-Description : Operations on 3D vectors, normals and points
+Description : 3D vectors, normals and points
 Copyright   : (c) Jonathan Merritt, 2015
 License     : Apache License 2.0
 Maintainer  : j.s.merritt@gmail.com
@@ -60,9 +60,12 @@ module VecMath (
 
 import Control.Exception (assert)
 
-data Vector3 = Vector3 {-# UNPACK #-} !Float !Float !Float deriving (Show) -- ^ 3D vector.
-data Normal3 = Normal3 {-# UNPACK #-} !Float !Float !Float deriving (Show) -- ^ 3D normal.
-data Point3  = Point3  {-# UNPACK #-} !Float !Float !Float deriving (Show) -- ^ 3D point.
+-- |3D vector.
+data Vector3 = Vector3 {-# UNPACK #-} !Float !Float !Float deriving (Show)
+-- |3D normal.
+data Normal3 = Normal3 {-# UNPACK #-} !Float !Float !Float deriving (Show)
+-- |3D point.
+data Point3  = Point3  {-# UNPACK #-} !Float !Float !Float deriving (Show)
 
 -- |Provides a uniform way to access elements of a vector, normal or point.
 class Cartesian3Tuple a where
