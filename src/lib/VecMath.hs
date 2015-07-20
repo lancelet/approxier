@@ -24,12 +24,12 @@ to individual components as well as a way to retrieve them as a '(Float, Float, 
 -}
 module VecMath (
   -- * Classes
-    Cartesian3Tuple(
-      xcomp
-    , ycomp
-    , zcomp
-    , cartesian3Tuple
-    )
+  Cartesian3Tuple(
+    xcomp
+  , ycomp
+  , zcomp
+  , cartesian3Tuple
+  )
   -- * Types
   , Vector3
   , Normal3
@@ -44,8 +44,6 @@ module VecMath (
   -- * Vector3 arithmetic
   , (.*)
   , (./)
-  , (.+)
-  , (.-)
   -- * Vector3 operations
   , lengthSquared
   , vectorLength
@@ -56,6 +54,7 @@ module VecMath (
   , (⨯)
   -- * Point3 operations
   , offsetPoint
+  , offsetPointAlongNormal
   ) where
 
 import Control.Exception (assert)
@@ -90,6 +89,16 @@ instance Cartesian3Tuple Point3 where
   xcomp p = let (Point3 x _ _) = p in x
   ycomp p = let (Point3 _ y _) = p in y
   zcomp p = let (Point3 _ _ z) = p in z
+
+-- |Vector3 pretends to have a Num instance.
+instance Num Vector3 where
+  (+) (Vector3 x1 y1 z1) (Vector3 x2 y2 z2) = Vector3 (x1 + x2) (y1 + y2) (z1 + z2)
+  (-) (Vector3 x1 y1 z1) (Vector3 x2 y2 z2) = Vector3 (x1 - x2) (y1 - y2) (z1 - z2)
+  negate (Vector3 x y z) = Vector3 (-x) (-y) (-z)
+  (*)         = error "Multiplication is NOT defined for Vector3"
+  abs         = error "abs is NOT defined for Vector3"
+  signum      = error "signum is NOT defined for Vector3"
+  fromInteger = error "fromInteger is NOT defined for Vector3"
 
 -- |Constructs a vector.
 v3 :: Float -> Float -> Float -> Vector3
@@ -153,14 +162,15 @@ cross (Vector3 x1 y1 z1) (Vector3 x2 y2 z2) =
 (⨯) :: Vector3 -> Vector3 -> Vector3
 (⨯) = cross
 
--- |Adds two vectors.
-(.+) :: Vector3 -> Vector3 -> Vector3
-(.+) (Vector3 x1 y1 z1) (Vector3 x2 y2 z2) = Vector3 (x1 + x2) (y1 + y2) (z1 + z2)
-
--- |Subtracts a vector from another.
-(.-) :: Vector3 -> Vector3 -> Vector3
-(.-) (Vector3 x1 y1 z1) (Vector3 x2 y2 z2) = Vector3 (x1 - x2) (y1 - y2) (z1 - z2)
-
 -- |Offsets a point by a given vector.
 offsetPoint :: Vector3 -> Point3 -> Point3
 offsetPoint (Vector3 vx vy vz) (Point3 px py pz) = Point3 (px + vx) (py + vy) (pz + vz)
+
+-- |Offsets a point by a given factor along a normal direction.
+offsetPointAlongNormal :: Normal3 -> Float -> Point3 -> Point3
+offsetPointAlongNormal (Normal3 nx ny nz) t (Point3 px py pz) =
+  let
+    x = px + t * nx
+    y = py + t * ny
+    z = pz + t * nz
+    in Point3 x y z

@@ -5,8 +5,8 @@ module Main where
 import           Data.Word (Word8)
 
 import           VecMath   (Cartesian3Tuple (xcomp, ycomp, zcomp, cartesian3Tuple),
-                            Normal3, Point3, Vector3, dot, n3v3, normalize, p3,
-                            p3v3, v3)
+                            Normal3, Point3, Vector3, dot, n3v3, normalize,
+                            offsetPointAlongNormal, p3, p3v3, v3)
 
 main :: IO ()
 main = writeFile "test.ppm" testRender
@@ -20,11 +20,7 @@ data Ray =
 -- | Evaluates a ray at a parametric distance.
 -- rayAt = P3 + N3 * t
 rayAt :: Ray -> Float -> Point3
-rayAt (Ray p n) t = p3 x' y' z'
-  where
-    x' = (xcomp p) + t * (xcomp n)
-    y' = (ycomp p) + t * (ycomp  n)
-    z' = (zcomp p) + t * (zcomp n)
+rayAt (Ray p n) t = offsetPointAlongNormal n t p
 
 -- | Color.
 data Color =
