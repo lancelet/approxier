@@ -25,9 +25,9 @@ to individual components as well as a way to retrieve them as a '(Float, Float, 
 module VecMath (
   -- * Classes
     Cartesian3Tuple(
-      x
-    , y
-    , z
+      xcomp
+    , ycomp
+    , zcomp
     , cartesian3Tuple
     )
   -- * Types
@@ -69,53 +69,53 @@ data Point3  = Point3  {-# UNPACK #-} !Float !Float !Float deriving (Show)
 
 -- |Provides a uniform way to access elements of a vector, normal or point.
 class Cartesian3Tuple a where
-  x :: a -> Float
-  y :: a -> Float
-  z :: a -> Float
+  xcomp :: a -> Float
+  ycomp :: a -> Float
+  zcomp :: a -> Float
 
   cartesian3Tuple :: a -> (Float, Float, Float)
-  cartesian3Tuple q = (x q, y q, z q)
+  cartesian3Tuple q = (xcomp q, ycomp q, zcomp q)
 
 instance Cartesian3Tuple Vector3 where
-  x v = let (Vector3 xx _ _) = v in xx
-  y v = let (Vector3 _ yy _) = v in yy
-  z v = let (Vector3 _ _ zz) = v in zz
+  xcomp v = let (Vector3 x _ _) = v in x
+  ycomp v = let (Vector3 _ y _) = v in y
+  zcomp v = let (Vector3 _ _ z) = v in z
 
 instance Cartesian3Tuple Normal3 where
-  x n = let (Normal3 xx _ _) = n in xx
-  y n = let (Normal3 _ yy _) = n in yy
-  z n = let (Normal3 _ _ zz) = n in zz
+  xcomp n = let (Normal3 x _ _) = n in x
+  ycomp n = let (Normal3 _ y _) = n in y
+  zcomp n = let (Normal3 _ _ z) = n in z
 
 instance Cartesian3Tuple Point3 where
-  x p = let (Point3 xx _ _) = p in xx
-  y p = let (Point3 _ yy _) = p in yy
-  z p = let (Point3 _ _ zz) = p in zz
+  xcomp p = let (Point3 x _ _) = p in x
+  ycomp p = let (Point3 _ y _) = p in y
+  zcomp p = let (Point3 _ _ z) = p in z
 
 -- |Constructs a vector.
 v3 :: Float -> Float -> Float -> Vector3
-v3 xx yy zz = Vector3 xx yy zz
+v3 x y z = Vector3 x y z
 
 -- |Constructs a point.
 p3 :: Float -> Float -> Float -> Point3
-p3 xx yy zz = Point3 xx yy zz
+p3 x y z = Point3 x y z
 
 -- |Constructs a normal (guaranteed to be unit length by construction).
 n3 :: Float -> Float -> Float -> Normal3
-n3 xx yy zz =
-    let l = sqrt ((xx * xx) + (yy * yy) + (zz * zz))
-    in assert (l >= 0.0) (Normal3 (xx / l) (yy / l) (zz / l))
+n3 x y z =
+    let l = sqrt ((x * x) + (y * y) + (z * z))
+    in assert (l >= 0.0) (Normal3 (x / l) (y / l) (z / l))
 
 -- |Explicitly converts a point to a vector.
 p3v3 :: Point3 -> Vector3
-p3v3 (Point3 xx yy zz) = v3 xx yy zz
+p3v3 (Point3 x y z) = v3 x y z
 
 -- |Explicitly converts a normal to a vector.
 n3v3 :: Normal3 -> Vector3
-n3v3 (Normal3 xx yy zz) = v3 xx yy zz
+n3v3 (Normal3 x y z) = v3 x y z
 
 -- |Returns the squared length of a vector.
 lengthSquared :: Vector3 -> Float
-lengthSquared (Vector3 xx yy zz) = (xx * xx) + (yy * yy) + (zz * zz)
+lengthSquared (Vector3 x y z) = (x * x) + (y * y) + (z * z)
 
 -- |Returns the length of a vector.
 vectorLength :: Vector3 -> Float
@@ -123,15 +123,15 @@ vectorLength = sqrt . lengthSquared
 
 -- |Multiplies a vector by a scalar.
 (.*) :: Vector3 -> Float -> Vector3
-(.*) (Vector3 xx yy zz) c = v3 (xx * c) (yy * c) (zz * c)
+(.*) (Vector3 x y z) c = v3 (x * c) (y * c) (z * c)
 
 -- |Divides a vector by a scalar.
 (./) :: Vector3 -> Float -> Vector3
-(./) (Vector3 xx yy zz) c = v3 (xx / c) (yy / c) (zz / c)
+(./) (Vector3 x y z) c = v3 (x / c) (y / c) (z / c)
 
 -- |Normalizes a vector, creating a normal.
 normalize :: Vector3 -> Normal3
-normalize (Vector3 xx yy zz) = n3 xx yy zz
+normalize (Vector3 x y z) = n3 x y z
 
 -- |Vector dot product.
 dot :: Vector3 -> Vector3 -> Float
@@ -144,10 +144,10 @@ dot (Vector3 x1 y1 z1) (Vector3 x2 y2 z2) = (x1 * x2) + (y1 * y2) + (z1 * z2)
 -- |Vector cross product.
 cross :: Vector3 -> Vector3 -> Vector3
 cross (Vector3 x1 y1 z1) (Vector3 x2 y2 z2) =
-    let xx = (y1 * z2) - (y2 * z1)
-        yy = (x2 * z1) - (x1 * z2)
-        zz = (x1 * y2) - (x2 * y1)
-    in Vector3 xx yy zz
+    let x = (y1 * z2) - (y2 * z1)
+        y = (x2 * z1) - (x1 * z2)
+        z = (x1 * y2) - (x2 * y1)
+    in Vector3 x y z
 
 -- |Vector cross product (symbolic alias).
 (⨯) :: Vector3 -> Vector3 -> Vector3

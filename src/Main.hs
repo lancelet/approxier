@@ -2,9 +2,11 @@
 
 module Main where
 
-import Data.Word (Word8)
+import           Data.Word (Word8)
 
-import VecMath (Cartesian3Tuple(x, y, z, cartesian3Tuple), Vector3, Point3, Normal3, p3v3, n3v3, p3, v3, normalize, dot)
+import           VecMath   (Cartesian3Tuple (xcomp, ycomp, zcomp, cartesian3Tuple),
+                            Normal3, Point3, Vector3, dot, n3v3, normalize, p3,
+                            p3v3, v3)
 
 main :: IO ()
 main = writeFile "test.ppm" testRender
@@ -20,9 +22,9 @@ data Ray =
 rayAt :: Ray -> Float -> Point3
 rayAt (Ray p n) t = p3 x' y' z'
   where
-    x' = (x p) + t * (x n)
-    y' = (y p) + t * (y n)
-    z' = (z p) + t * (z n)
+    x' = (xcomp p) + t * (xcomp n)
+    y' = (ycomp p) + t * (ycomp  n)
+    z' = (zcomp p) + t * (zcomp n)
 
 -- | Color.
 data Color =
@@ -131,13 +133,13 @@ sphereTracePrim (Sphere r phiMax zMin zMax) = TracePrim trace
                                               then Just (Intersection isectp isectn)
                                               else Nothing
                        where
-                         isValid = ((z isectp) >= zMin && (z isectp) <= zMax && (degrees phi) <= phiMax)
+                         isValid = ((zcomp isectp) >= zMin && (zcomp isectp) <= zMax && (degrees phi) <= phiMax)
                          isectp = rayAt ray t
                          isectn = normalize (p3v3 isectp)
                          phi = if phi' < 0.0
                                   then phi' + 2.0 * pi
                                   else phi'
-                         phi' = atan2 (y isectp) (x isectp)
+                         phi' = atan2 (ycomp isectp) (xcomp isectp)
 
       where
         a = nx * nx + ny * ny + nz * nz
@@ -161,19 +163,19 @@ dotShade inColor (Ray _ nr) (Intersection _ ni) = c
 
 -- | Simple camera model.
 data Camera = Camera
-    { cameraFov :: Float
+    { cameraFov    :: Float
     , cameraHither :: Float
     }
 
 -- | Raster parameters.
 data RasterParams = RasterParams
-    { rasterParamsWidth :: Int
+    { rasterParamsWidth  :: Int
     , rasterParamsHeight :: Int
     }
 
 -- | Raster.
 data Raster = Raster
-    { rasterWidth :: Int
+    { rasterWidth  :: Int
     , rasterHeight :: Int
     , rasterPixels :: [Color]
     }
@@ -217,9 +219,9 @@ rayForRasterCoord camera rasterParams rasterCoord = Ray p n
 
 -- | Transformation.
 data XForm = XForm
-  { xformPt :: Point3 -> Point3
-  , xformVec :: Vector3 -> Vector3
-  , xformPtInv :: Point3 -> Point3
+  { xformPt     :: Point3 -> Point3
+  , xformVec    :: Vector3 -> Vector3
+  , xformPtInv  :: Point3 -> Point3
   , xformVecInv :: Vector3 -> Vector3
   }
 
@@ -235,8 +237,8 @@ invXForm (XForm p v p' v') = XForm p' v' p v
 translate :: Vector3 -> XForm
 translate v = XForm xfp id xfpInv id
   where
-    xfp p = p3 ((x p) + tx) ((y p) + ty) ((z p) + tz)
-    xfpInv p = p3 ((x p) - tx) ((y p) - ty) ((z p) - tz)
+    xfp p = p3 ((xcomp p) + tx) ((ycomp p) + ty) ((zcomp p) + tz)
+    xfpInv p = p3 ((xcomp p) - tx) ((ycomp p) - ty) ((zcomp p) - tz)
     (tx, ty, tz) = cartesian3Tuple v
 
 -- | Transform a normal vector.
