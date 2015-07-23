@@ -4,23 +4,35 @@ module Main where
 
 import           Data.Word (Word8)
 
-import           VecMath   (Cartesian3Tuple (xcomp, ycomp, zcomp, cartesian3Tuple),
-                            Normal3, Point3, Vector3, dot, n3v3, normalize,
-                            offsetPointAlongNormal, p3, p3v3, v3)
+import           VecMath   (Cartesian3Tuple (xcomp, ycomp, zcomp, cartesian3Tuple, toVector3, toNormal3),
+                            Normal3, Point3, dot,
+                            offsetPointAlongVector, p3, Ray(..), WorldSpace, ObjectSpace, CameraSpace,
+                            XForm, Transformable(xform), translate, InSpace(..), xformInv,
+                            rotate, v3)
 
 main :: IO ()
-main = writeFile "test.ppm" testRender
+main =
+  let
+    actions :: [IO ()]
+    actions = map (\frame -> writeFile (fileName frame) (testRender (fromIntegral frame))) [0 .. 359]
+  in
+    sequence_ actions
 
--- | Ray.
-data Ray =
-    Ray Point3
-        Normal3
-    deriving (Show)
+fileName :: Int -> String
+fileName frame = (numToStr frame) ++ ".ppm"
+
+numToStr :: Int -> String
+numToStr x
+  | x < 10    = "000" ++ (show x)
+  | x < 100   = "00"  ++ (show x)
+  | x < 1000  = "0"   ++ (show x)
+  | x < 9999  = (show x)
+  | otherwise = error "only handles numbers < 9999"
 
 -- | Evaluates a ray at a parametric distance.
 -- rayAt = P3 + N3 * t
 rayAt :: Ray -> Float -> Point3
-rayAt (Ray p n) t = offsetPointAlongNormal n t p
+rayAt (Ray p v) t = offsetPointAlongVector v t p
 
 -- | Color.
 data Color =
@@ -80,9 +92,18 @@ data Intersection = Intersection
     , intersectionN :: Normal3
     } deriving (Show)
 
+
+
+-- |Something that carries a transformation to world coordinates.
+data HasTransform nativecsys a = HasTransform (XForm nativecsys WorldSpace) a
+
+withTransform :: XForm nativecsys WorldSpace -> a -> HasTransform nativecsys a
+withTransform x thing = HasTransform x thing
+
+
 -- | Trace a ray against a primitive.
 data TracePrim = TracePrim
-    { tracePrimRay :: Ray -> Maybe Intersection
+    { tracePrimRay :: InSpace ObjectSpace Ray -> Maybe (InSpace ObjectSpace Intersection)
     }
 
 -- | Converts degrees to radians.
@@ -113,8 +134,8 @@ quadratic a b c = if (discrim <= 0.0)
 sphereTracePrim :: Sphere -> TracePrim
 sphereTracePrim (Sphere r phiMax zMin zMax) = TracePrim trace
   where
-    trace :: Ray -> Maybe Intersection
-    trace ray = case quadratic a b c of
+    trace :: InSpace ObjectSpace Ray -> Maybe (InSpace ObjectSpace Intersection)
+    trace (InSpace ray) = case quadratic a b c of
                  Nothing       -> Nothing
                  Just (t1, t2) -> (checkIntersection t1) `mOr` (checkIntersection t2)
                    where
@@ -124,14 +145,14 @@ sphereTracePrim (Sphere r phiMax zMin zMax) = TracePrim trace
                      mOr   Nothing (Just x2) = Just x2
                      mOr         _         _ = Nothing
 
-                     checkIntersection :: Float -> Maybe Intersection
+                     checkIntersection :: Float -> Maybe (InSpace ObjectSpace Intersection)
                      checkIntersection t = if isValid
-                                              then Just (Intersection isectp isectn)
+                                              then Just (InSpace (Intersection isectp isectn))
                                               else Nothing
                        where
                          isValid = ((zcomp isectp) >= zMin && (zcomp isectp) <= zMax && (degrees phi) <= phiMax)
                          isectp = rayAt ray t
-                         isectn = normalize (p3v3 isectp)
+                         isectn = toNormal3 isectp
                          phi = if phi' < 0.0
                                   then phi' + 2.0 * pi
                                   else phi'
@@ -148,14 +169,14 @@ sphereTracePrim (Sphere r phiMax zMin zMax) = TracePrim trace
 -- | Computes the color of a surface as a simple dot product between the incoming ray direction
 --   and the surface normal.
 dotShade
-    :: Color         -- ^ raw color of the surface (color to be modulated)
-    -> Ray           -- ^ incoming intersection ray
-    -> Intersection  -- ^ intersection of the ray and the surface
-    -> Color         -- ^ computed `dotShade` color
-dotShade inColor (Ray _ nr) (Intersection _ ni) = c
+    :: Color                      -- ^ raw color of the surface (color to be modulated)
+    -> InSpace csys Ray           -- ^ incoming intersection ray
+    -> InSpace csys Intersection  -- ^ intersection of the ray and the surface
+    -> Color                      -- ^ computed `dotShade` color
+dotShade inColor (InSpace (Ray _ nr)) (InSpace (Intersection _ ni)) = c
   where
     c = mulColor (abs dp) inColor
-    dp = dot (n3v3 nr) (n3v3 ni)
+    dp = dot (toVector3 nr) (toVector3 ni)
 
 -- | Simple camera model.
 data Camera = Camera
@@ -197,10 +218,10 @@ rasterToNDC (RasterParams w h) (RasterCoord rx ry) = NDC ndcx ndcy
 
 -- | Computes a ray for the given raster coordinates.
 --   The ray starts at the hither plane.
-rayForRasterCoord :: Camera -> RasterParams -> RasterCoord -> Ray
-rayForRasterCoord camera rasterParams rasterCoord = Ray p n
+rayForRasterCoord :: Camera -> RasterParams -> RasterCoord -> InSpace CameraSpace Ray
+rayForRasterCoord camera rasterParams rasterCoord = InSpace (Ray p v)
   where
-    n = normalize (p3v3 p)
+    v = toVector3 (toNormal3 p)
     p = p3 rayx rayy hither
     rayx = ndcx * hwx
     rayy = ndcy * hwy
@@ -213,71 +234,43 @@ rayForRasterCoord camera rasterParams rasterCoord = Ray p n
     NDC ndcx ndcy = rasterToNDC rasterParams rasterCoord
     RasterParams w h = rasterParams
 
--- | Transformation.
-data XForm = XForm
-  { xformPt     :: Point3 -> Point3
-  , xformVec    :: Vector3 -> Vector3
-  , xformPtInv  :: Point3 -> Point3
-  , xformVecInv :: Vector3 -> Vector3
-  }
-
--- | Identity transformation.
-idXForm :: XForm
-idXForm = XForm id id id id
-
--- | Invert a transformation.
-invXForm :: XForm -> XForm
-invXForm (XForm p v p' v') = XForm p' v' p v
-
--- | Translate
-translate :: Vector3 -> XForm
-translate v = XForm xfp id xfpInv id
-  where
-    xfp p = p3 ((xcomp p) + tx) ((ycomp p) + ty) ((zcomp p) + tz)
-    xfpInv p = p3 ((xcomp p) - tx) ((ycomp p) - ty) ((zcomp p) - tz)
-    (tx, ty, tz) = cartesian3Tuple v
-
--- | Transform a normal vector.
-xformNormal :: XForm -> Normal3 -> Normal3
-xformNormal (XForm _ xfv _ _) n = normalize (xfv (n3v3 n))
-
--- | Transforms a ray.
-xformRay :: XForm -> Ray -> Ray
-xformRay xf@(XForm xfp _ _ _) (Ray p n) = Ray (xfp p) (xformNormal xf n)
-
--- | Transforms a TracePrim.
-xformTracePrim :: XForm -> TracePrim -> TracePrim
-xformTracePrim xf (TracePrim tpr) = TracePrim tpr'
-  where
-    tpr' ray = tpr (xformRay xf ray)
-
 -- | Trace a scene in one color.
 dotShadeTrace
-    :: Color           -- ^ underlying color to shade everything in the scene
-    -> RasterParams    -- ^ parameters of the raster to create
-    -> Camera          -- ^ camera for the scene
-    -> XForm           -- ^ world-to-camera transformation
-    -> TracePrim       -- ^ primitive (entire scene) to trace
-    -> Raster          -- ^ raster output
-dotShadeTrace color rasterParams camera camera2world tracePrim = raster
+    :: Color                               -- ^ underlying color to shade everything in the scene
+    -> RasterParams                        -- ^ parameters of the raster to create
+    -> HasTransform CameraSpace Camera     -- ^ camera for the scene
+    -> HasTransform ObjectSpace TracePrim  -- ^ primitive (entire scene) to trace
+    -> Raster                              -- ^ raster output
+dotShadeTrace color rasterParams cameraWithTransform tracePrimWithTransform = raster
   where
     raster = Raster w h pixels
     RasterParams w h = rasterParams
-    pixels = map shadeTuple (zip worldRays intersections)
+    pixels = map shadeTuple (zip objRays intersections)
 
-    shadeTuple :: (Ray, Maybe Intersection) -> Color
+    shadeTuple :: (InSpace ObjectSpace Ray, Maybe (InSpace ObjectSpace Intersection)) -> Color
     shadeTuple (ray, maybeIntersection) =
       case maybeIntersection of
         Just isect -> dotShade color ray isect
         Nothing    -> black
 
-    intersections :: [Maybe Intersection]
-    intersections = map (tracePrimRay tracePrim) worldRays
+    intersections :: [Maybe (InSpace ObjectSpace Intersection)]
+    intersections = map (tracePrimRay tracePrim) objRays
 
-    worldRays = map (xformRay camera2world) camRays
+    objRays :: [InSpace ObjectSpace Ray]
+    objRays = map (xform world2object) worldRays
+
+    worldRays :: [InSpace WorldSpace Ray]
+    worldRays = map (xform camera2world) camRays
+
+    camRays :: [InSpace CameraSpace Ray]
     camRays = map (rayForRasterCoord camera rasterParams) rasterCoords
+
     rasterCoords = map (\(rx,ry) -> RasterCoord rx ry) rawRasterCoords
     rawRasterCoords = [((fromIntegral i) - 0.5, (fromIntegral j) - 0.5) | j <- [1..h], i <- [1..w]]
+
+    world2object = xformInv object2world
+    HasTransform object2world tracePrim = tracePrimWithTransform
+    HasTransform camera2world camera = cameraWithTransform
 
 -- | Splits a list into constant-size sub-lists.
 splitEvery :: Int -> [a] -> [[a]]
@@ -307,24 +300,17 @@ rasterToPPM f (Raster w h pixels) = ppm
     imageColors :: [ImageColor]
     imageColors = map f pixels
 
--- | Test scene.
-testScene :: TracePrim
-testScene = sphereTracePrim (Sphere 1.0 300.0 (-0.8) (0.8))
-
 -- | Test camera.
-testCamera :: Camera
-testCamera = Camera 45.0 0.01
-
--- | Test camera transformation.
-testCameraXForm :: XForm
-testCameraXForm = translate (v3 0.0 0.0 (-5.0))
+testCamera :: HasTransform CameraSpace Camera
+testCamera = withTransform (translate 0 0 (-5.0)) $ Camera 45.0 0.01
 
 -- | Test raster parameters.
 testRasterParams :: RasterParams
-testRasterParams = RasterParams 3840 2160
+testRasterParams = RasterParams 800 600
 
 -- | Test rendering the scene (as PPM bitmap).
-testRender :: String
-testRender = rasterToPPM color2ImageColor raster
+testRender :: Float -> String
+testRender angle = rasterToPPM color2ImageColor raster
   where
-    raster = dotShadeTrace white testRasterParams testCamera testCameraXForm testScene
+    testScene = withTransform (rotate angle (v3 1 0 1)) $ sphereTracePrim $ Sphere 1.0 300.0 (-0.8) (0.8)
+    raster = dotShadeTrace white testRasterParams testCamera testScene
