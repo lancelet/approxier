@@ -312,13 +312,13 @@ testCamera = withTransform (translate 0 0 (-5.0)) $ Camera 45.0 0.01
 
 -- | Test raster parameters.
 testRasterParams :: RasterParams
-testRasterParams = RasterParams 800 600
+testRasterParams = RasterParams 400 300
 
 -- | Test rendering the scene (as PPM bitmap).
 testRender :: Float -> Raster
 testRender angle = raster
   where
-    testScene = withTransform (rotate angle (v3 1 0 0)) $ sphereTracePrim $ Sphere 1.0 300.0 (-0.8) (0.8)
+    testScene = withTransform (rotate angle (v3 0 0 1)) $ sphereTracePrim $ Sphere 1.0 300.0 (-0.7) (0.95)
     raster = dotShadeTrace white testRasterParams testCamera testScene
 
 
