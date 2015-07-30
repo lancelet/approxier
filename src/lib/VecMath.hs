@@ -64,21 +64,6 @@ module VecMath (
   -- * Point3 operations
   , offsetPoint
   , offsetPointAlongVector
-  -- * Coordinate spaces
-  , WorldSpace
-  , ObjectSpace
-  , CameraSpace
-  , InSpace(InSpace, inspace)
-  , changeSpace
-  , WorldV
-  , WorldP
-  , WorldN
-  , ObjectV
-  , ObjectP
-  , ObjectN
-  , CameraV
-  , CameraP
-  , CameraN
   -- * Transformations between spaces
   , XForm
   , xformInv
@@ -210,70 +195,31 @@ offsetPointAlongVector :: Vector3 -> Float -> Point3 -> Point3
 offsetPointAlongVector v d p = toPoint3 ((toVector3 p) + (v .* d))
 
 ----------------------------------------------------------------------------------------------------
--- COORDINATE SPACES
-
--- |World coordinate space.
-data WorldSpace
--- |Object coordinate space. (Which object? Good question...)
-data ObjectSpace
--- |Camera coordinate space.
-data CameraSpace
-
--- |Represents that type 'a' is stored in some coordinate space 'csys'. 'csys' is a phantom type
--- used only to indicate the coordinate system.
-data InSpace csys a = InSpace { inspace :: a }
-instance Functor (InSpace csys) where
-  fmap f = InSpace . f . inspace
-
--- |Changes the coordinate space of a type.
-changeSpace :: InSpace csys a -> InSpace csys' a
-changeSpace = InSpace . inspace
-
--- |Vector in world space.
-type WorldV = InSpace WorldSpace Vector3
--- |Point in world space.
-type WorldP = InSpace WorldSpace Point3
--- |Normal in world space.
-type WorldN = InSpace WorldSpace Normal3
-
--- |Vector in object space.
-type ObjectV = InSpace ObjectSpace Vector3
--- |Point in object space.
-type ObjectP = InSpace ObjectSpace Point3
--- |Normal in object space.
-type ObjectN = InSpace ObjectSpace Normal3
-
--- |Vector in camera space.
-type CameraV = InSpace CameraSpace Vector3
--- |Point in camera space.
-type CameraP = InSpace CameraSpace Point3
--- |Normal in camera space.
-type CameraN = InSpace CameraSpace Normal3
-
-----------------------------------------------------------------------------------------------------
 -- TRANSFORMATIONS BETWEEN COORDINATE SPACES
 
 -- |Transformation between coordinate spaces.
-data XForm from to = XForm
-                       AMatrix  -- ^ transformation from -> to
-                       AMatrix  -- ^ inverse transformation to -> from
+data XForm = XForm
+             AMatrix  -- ^ transformation from -> to
+             AMatrix  -- ^ inverse transformation to -> from
 
 -- |Invert a transformation.
-xformInv :: XForm a b -> XForm b a
+xformInv :: XForm -> XForm
 xformInv (XForm x x') = XForm x' x
 
 -- |Compose transformations.
-xformCompose :: XForm a b -> XForm b c -> XForm a c
+xformCompose :: XForm  -- ^ transformation A
+             -> XForm  -- ^ transformation B
+             -> XForm  -- ^ transformation that is equal to applying A and then B
 xformCompose (XForm x1 x1') (XForm x2 x2') = XForm (x2 * x1) (x1' * x2')
 
 -- |Identity affine transformation.
-xformId :: XForm from to
+xformId :: XForm
 xformId =
   let m = AMatrix  1 0 0 0  0 1 0 0  0 0 1 0
   in XForm m m
 
 -- |Translation.
-translate :: Float -> Float -> Float -> XForm from to
+translate :: Float -> Float -> Float -> XForm
 translate tx ty tz =
   let
     m  = AMatrix  1 0 0   tx   0 1 0   ty   0 0 1   tz
@@ -281,7 +227,7 @@ translate tx ty tz =
   in XForm m m'
 
 -- |Scale.
-scale :: Float -> Float -> Float -> XForm from to
+scale :: Float -> Float -> Float -> XForm
 scale sx sy sz =
   let
     m  = AMatrix sx 0 0 0  0 sy 0 0  0 0 sz 0
@@ -290,7 +236,7 @@ scale sx sy sz =
 
 -- |Axis-angle rotation.
 -- The angle is expressed in degrees.
-rotate :: Float -> Vector3 -> XForm from to
+rotate :: Float -> Vector3 -> XForm
 rotate degAngle v =
   let
     angle = degAngle * pi / 180.0
@@ -311,30 +257,30 @@ rotate degAngle v =
   in XForm m m'
 
 -- |Transform a vector.
-xformVector3 :: XForm from to -> Vector3 -> Vector3
+xformVector3 :: XForm -> Vector3 -> Vector3
 xformVector3 (XForm m _) (Vector3 x y z) =
   let HVector x' y' z' _ = affineMul m (HVector x y z 0)
   in Vector3 x' y' z'
 
 -- |Transform a point.
-xformPoint3 :: XForm from to -> Point3 -> Point3
+xformPoint3 :: XForm -> Point3 -> Point3
 xformPoint3 (XForm m _) (Point3 x y z) =
   let HVector x' y' z' _ = affineMul m (HVector x y z 1)
   in Point3 x' y' z'
 
 -- |Transform a normal.
-xformNormal3 :: XForm from to -> Normal3 -> Normal3
+xformNormal3 :: XForm -> Normal3 -> Normal3
 xformNormal3 (XForm _ m') (Normal3 x y z) =
   let HVector x' y' z' _ = affineTransposeMul m' (HVector x y z 0)
   in n3 x' y' z'
 
 -- |Transforms an object of type 'a' between coordinate spaces.
 class Transformable a where
-  xform :: XForm from to -> InSpace from a -> InSpace to a
+  xform :: XForm -> a -> a
 
-instance Transformable Vector3 where xform xf = changeSpace . (fmap (xformVector3 xf))
-instance Transformable Point3  where xform xf = changeSpace . (fmap (xformPoint3  xf))
-instance Transformable Normal3 where xform xf = changeSpace . (fmap (xformNormal3 xf))
+instance Transformable Vector3 where xform = xformVector3
+instance Transformable Point3  where xform = xformPoint3
+instance Transformable Normal3 where xform = xformNormal3
 
 ----------------------------------------------------------------------------------------------------
 -- HOMOGENEOUS COORDINATE VECTORS AND AFFINE MATRICES
@@ -408,7 +354,7 @@ affineTransposeMul m v =
 data Ray = Ray Point3 Vector3 deriving (Show)
 
 -- |Transform a ray.
-xformRay :: XForm from to -> Ray -> Ray
+xformRay :: XForm -> Ray -> Ray
 xformRay x (Ray p v) = Ray (xformPoint3 x p) (xformVector3 x v)
 
-instance Transformable Ray where xform xf = changeSpace . (fmap (xformRay xf))
+instance Transformable Ray where xform = xformRay
