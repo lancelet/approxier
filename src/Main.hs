@@ -281,34 +281,6 @@ dotShadeTrace color rasterParams cameraWithTransform tracePrimWithTransform = ra
     HasTransform object2world tracePrim = tracePrimWithTransform
     HasTransform camera2world camera = cameraWithTransform
 
--- | Splits a list into constant-size sub-lists.
-splitEvery :: Int -> [a] -> [[a]]
-splitEvery _ [] = []
-splitEvery n list = first : (splitEvery n rest)
-  where
-    (first,rest) = splitAt n list
-
--- | Converts a Raster to a PPM bitmap.
-rasterToPPM :: (Color -> ImageColor) -> Raster -> String
-rasterToPPM f (Raster w h pixels) = ppm
-  where
-    ppm = unlines ([ "P3"
-                   , (show w) ++ " " ++ (show h)
-                   , "255"
-                   ] ++ rows)
-
-    rows :: [String]
-    rows = map unwords (splitEvery w ppmColors)
-
-    ppmColors :: [String]
-    ppmColors = map color2ppm imageColors
-
-    color2ppm :: ImageColor -> String
-    color2ppm (ImageColor r g b) = (show r) ++ " " ++ (show g) ++ " " ++ (show b)
-
-    imageColors :: [ImageColor]
-    imageColors = map f pixels
-
 -- | Test camera.
 testCamera :: HasTransform Camera
 testCamera = withTransform (translate 0 0 (-5.0)) $ Camera 45.0 0.01
