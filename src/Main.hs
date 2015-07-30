@@ -10,6 +10,8 @@ import Data.Word (Word8)
 
 import Codec.Picture (DynamicImage(ImageRGB8), PixelRGB8(PixelRGB8), generateFoldImage, savePngImage)
 
+import Control.Concurrent.Async (mapConcurrently)
+
 
 main :: IO ()
 main =
@@ -21,10 +23,11 @@ main =
         file   = fileName frame
       in savePngRaster color2ImageColor raster file
     
-    actions :: [IO ()]
-    actions = map renderFrame [0 .. 359]
-  in
-    sequence_ actions
+    --actions :: [IO ()]
+    --actions = map renderFrame [0 .. 359]
+  in do
+     _ <- mapConcurrently renderFrame [0 .. 359]
+     return ()
 
 fileName :: Int -> String
 fileName frame = (numToStr frame) ++ ".png"
