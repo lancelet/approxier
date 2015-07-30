@@ -2,24 +2,32 @@
 
 module Main where
 
-import           Data.Word (Word8)
+import VecMath   (Cartesian3Tuple (xcomp, ycomp, zcomp, cartesian3Tuple, toVector3, toNormal3),
+                  Normal3, Point3, Ray (..), Transformable (xform), XForm, dot,
+                  offsetPointAlongVector, p3, rotate, translate, v3, xformInv)
 
-import           VecMath   (Cartesian3Tuple (xcomp, ycomp, zcomp, cartesian3Tuple, toVector3, toNormal3),
-                            Normal3, Point3, dot,
-                            offsetPointAlongVector, p3, Ray(..),
-                            XForm, Transformable(xform), translate, xformInv,
-                            rotate, v3)
+import Data.Word (Word8)
+
+import Codec.Picture (DynamicImage(ImageRGB8), PixelRGB8(PixelRGB8), generateFoldImage, savePngImage)
+
 
 main :: IO ()
 main =
   let
+    renderFrame :: Int -> IO ()
+    renderFrame frame =
+      let
+        raster = testRender (fromIntegral frame)
+        file   = fileName frame
+      in savePngRaster color2ImageColor raster file
+    
     actions :: [IO ()]
-    actions = map (\frame -> writeFile (fileName frame) (testRender (fromIntegral frame))) [0 .. 359]
+    actions = map renderFrame [0 .. 359]
   in
     sequence_ actions
 
 fileName :: Int -> String
-fileName frame = (numToStr frame) ++ ".ppm"
+fileName frame = (numToStr frame) ++ ".png"
 
 numToStr :: Int -> String
 numToStr x
@@ -59,9 +67,7 @@ mulColor c (Color r g b) = Color (c * r) (c * g) (c * b)
 
 -- | Color for raster output.
 data ImageColor =
-    ImageColor Word8
-               Word8
-               Word8
+    ImageColor {-# UNPACK #-} !Word8 !Word8 !Word8
     deriving (Show)
 
 -- | Simple color 2 image color transformation (0 -> 1) -> (0 -> 255).
@@ -309,8 +315,25 @@ testRasterParams :: RasterParams
 testRasterParams = RasterParams 800 600
 
 -- | Test rendering the scene (as PPM bitmap).
-testRender :: Float -> String
-testRender angle = rasterToPPM color2ImageColor raster
+testRender :: Float -> Raster
+testRender angle = raster
   where
     testScene = withTransform (rotate angle (v3 1 0 0)) $ sphereTracePrim $ Sphere 1.0 300.0 (-0.8) (0.8)
     raster = dotShadeTrace white testRasterParams testCamera testScene
+
+
+----------------------------------------------------------------------------------------------------
+-- JUICY PIXELS STUFF
+
+savePngRaster :: (Color -> ImageColor) -> Raster -> FilePath -> IO ()
+savePngRaster transfer raster file = savePngImage file (rasterToImage transfer raster)
+
+rasterToImage :: (Color -> ImageColor) -> Raster -> DynamicImage
+rasterToImage transfer (Raster w h px) =
+  let
+    f (color:remainder) _ _ = (remainder, imageColorToPixel $ transfer color)
+    f []                _ _ = error "attempted to extract too many pixels"
+  in ImageRGB8 $ snd $ generateFoldImage f px w h
+
+imageColorToPixel :: ImageColor -> PixelRGB8
+imageColorToPixel (ImageColor r g b) = PixelRGB8 r g b
