@@ -31,3 +31,4 @@ executable approxier
   build-depends:
       base
     , approxier
+    , JuicyPixels  >= 3.2.5.3 && < 3.3
