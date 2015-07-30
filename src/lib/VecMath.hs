@@ -163,8 +163,8 @@ vectorLength = sqrt . lengthSquared
 (./) (Vector3 x y z) c = v3 (x / c) (y / c) (z / c)
 
 -- |Normalizes a vector, creating a normal.
-normalize :: Vector3 -> Normal3
-normalize (Vector3 x y z) = n3 x y z
+normalize :: Vector3 -> Vector3
+normalize (Vector3 x y z) = toVector3 $ n3 x y z
 
 -- |Vector dot product.
 dot :: Vector3 -> Vector3 -> Float

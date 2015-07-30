@@ -2,32 +2,37 @@
 
 module Main where
 
-import VecMath   (Cartesian3Tuple (xcomp, ycomp, zcomp, cartesian3Tuple, toVector3, toNormal3),
-                  Normal3, Point3, Ray (..), Transformable (xform), XForm, dot,
-                  offsetPointAlongVector, p3, rotate, translate, v3, xformInv)
+import VecMath                  (Cartesian3Tuple (xcomp, ycomp, zcomp, cartesian3Tuple, toVector3, toNormal3),
+                                 Normal3, Point3, Vector3, Ray (..), Transformable (xform), XForm, dot,
+                                 normalize, offsetPointAlongVector, p3, rotate, translate, v3,
+                                 xformCompose, xformInv, (⋅), (⨯), (.*))
 
-import Data.Word (Word8)
+import Data.Word                (Word8)
 
-import Codec.Picture (DynamicImage(ImageRGB8), PixelRGB8(PixelRGB8), generateFoldImage, savePngImage)
+import Codec.Picture            (DynamicImage (ImageRGB8), PixelRGB8 (PixelRGB8), generateFoldImage,
+                                 savePngImage)
 
 import Control.Concurrent.Async (mapConcurrently)
+
+import System.Random            (RandomGen, getStdGen, randomRs, split)
+
+import qualified Debug.Trace as DT (trace)
 
 
 main :: IO ()
 main =
   let
-    renderFrame :: Int -> IO ()
-    renderFrame frame =
+    renderFrame :: RandomGen a => (a, Int) -> IO ()
+    renderFrame (rng, frame) =
       let
-        raster = testRender (fromIntegral frame)
+        raster = testAORender rng (fromIntegral frame)
         file   = fileName frame
       in savePngRaster color2ImageColor raster file
-    
-    --actions :: [IO ()]
-    --actions = map renderFrame [0 .. 359]
   in do
-     _ <- mapConcurrently renderFrame [0 .. 359]
-     return ()
+     rng <- getStdGen
+     --_   <- mapConcurrently renderFrame (zip (randomGenList rng) [0 .. 359])
+     --return ()
+     sequence_ (map renderFrame (zip (randomGenList rng) [0 .. 359]))
 
 fileName :: Int -> String
 fileName frame = (numToStr frame) ++ ".png"
@@ -67,6 +72,12 @@ green = Color 0.0 1.0 0.0
 -- | Scales all components of a color value by a scalar.
 mulColor :: Float -> Color -> Color
 mulColor c (Color r g b) = Color (c * r) (c * g) (c * b)
+
+-- |Mixes two colors.
+mixColor :: Float -> Color -> Color -> Color
+mixColor c (Color r1 g1 b1) (Color r2 g2 b2) =
+  let mix x1 x2 = (1.0 - c) * x1 + c * x2
+  in Color (mix r1 r2) (mix g1 g2) (mix b1 b2)
 
 -- | Color for raster output.
 data ImageColor =
@@ -159,7 +170,7 @@ sphereTracePrim (Sphere r phiMax zMin zMax) = TracePrim trace
                                               then Just (Intersection isectp isectn)
                                               else Nothing
                        where
-                         isValid = ((zcomp isectp) >= zMin && (zcomp isectp) <= zMax && (degrees phi) <= phiMax)
+                         isValid = ((zcomp isectp) >= zMin && (zcomp isectp) <= zMax && (degrees phi) <= phiMax && t > 0)
                          isectp = rayAt ray t
                          isectn = toNormal3 isectp
                          phi = if phi' < 0.0
@@ -211,6 +222,16 @@ data RasterCoord = RasterCoord
     { rasterCoordX :: Float
     , rasterCoordY :: Float
     }
+
+-- |Creates a list of raster coordinates that traverses a raster in row-major order.
+traverseRasterRowMajor :: Int                -- ^ width of the raster
+                       -> Int                -- ^ height of the raster
+                       -> [ RasterCoord ]    -- ^ list of raster coordinates
+traverseRasterRowMajor w h =
+  let
+    shift x = (fromIntegral x) - 0.5
+    mkrc i j = RasterCoord (shift i) (shift j)
+  in [ mkrc i j | j <- [1..h], i <- [1..w] ]
 
 -- | Normalize device coordinates (-1 to 1).
 data NDC = NDC
@@ -274,12 +295,163 @@ dotShadeTrace color rasterParams cameraWithTransform tracePrimWithTransform = ra
     camRays :: [Ray]
     camRays = map (rayForRasterCoord camera rasterParams) rasterCoords
 
-    rasterCoords = map (\(rx,ry) -> RasterCoord rx ry) rawRasterCoords
-    rawRasterCoords = [((fromIntegral i) - 0.5, (fromIntegral j) - 0.5) | j <- [1..h], i <- [1..w]]
+    rasterCoords = traverseRasterRowMajor w h
 
     world2object = xformInv object2world
     HasTransform object2world tracePrim = tracePrimWithTransform
     HasTransform camera2world camera = cameraWithTransform
+
+----------------------------------------------------------------------------------------------------
+-- AMBIENT OCCLUSION
+
+-- |Transformation to align the +z axis with a given vector.
+simpleZAlign :: Normal3 -> XForm
+simpleZAlign normal =
+  let
+    z = v3 0 0 1
+    n = toVector3 normal
+    r = normalize (z ⨯ n)
+    a = acos (z ⋅ n)
+  in rotate (degrees a) r
+
+-- |Samples a hemisphere uniformly.
+sampleHemisphereUniformly :: RandomGen a
+                          => a             -- ^ random generator
+                          -> Int           -- ^ number of samples
+                          -> Point3        -- ^ point from which to sample (center of sphere)
+                          -> Normal3       -- ^ normal identifying the hemisphere
+                          -> [ Ray ]       -- ^ list of rays sampling the hemisphere
+sampleHemisphereUniformly rng nRays p n = rays -- [ Ray p (toVector3 n) ] -- rays
+  where
+    rays :: [ Ray ]
+    rays = map (\v -> Ray p v) viewVecs
+
+    viewVecs :: [ Vector3 ]
+    viewVecs = map (xform viewVectorRot) rawViewVecs
+
+    viewVectorRot :: XForm
+    viewVectorRot = simpleZAlign n
+
+    rawViewVecs :: [ Vector3 ]
+    rawViewVecs = map xis2vector xis
+
+    xis2vector :: (Float, Float) -> Vector3
+    xis2vector (xi1, xi2) =
+      let
+        pt = 2.0 * pi * xi2
+        rt = sqrt (1.0 - (xi1 * xi1))
+        x = rt * (cos pt)
+        y = rt * (sin pt)
+        z = xi1
+      in normalize $ v3 x y z
+
+    xis :: [ (Float, Float) ]
+    xis =
+      let
+        (g1, g2) = split rng
+        xi1s = randomRs (0.0, 1.0) g1
+        xi2s = randomRs (0.0, 1.0) g2
+      in take nRays (zip xi1s xi2s)
+
+-- |Shades a point using an ambient occlusion calculation.
+-- The intersection should be in the coordinates of the TracePrim (object coordinates).
+shadeAO :: RandomGen a
+        => a              -- ^ random generator
+        -> Int            -- ^ number of samples
+        -> Intersection   -- ^ intersection point
+        -> TracePrim      -- ^ primitive (entire scene) to use for occluding ambient light
+        -> Float          -- ^ the visibility of the scene
+shadeAO rng nRays (Intersection p n) (TracePrim trace) =
+  let
+    rays :: [ Ray ]
+    rays = map nudge (sampleHemisphereUniformly rng nRays p n)
+
+    nudge :: Ray -> Ray
+    nudge (Ray pr vr) = Ray (offsetPointAlongVector vr 0.001 pr) vr
+
+    intersections :: [ (Ray, Maybe Intersection) ]
+    intersections = zip rays (map trace rays)
+
+    raycontrib :: (Ray, Maybe Intersection) -> Float
+    raycontrib ((Ray _ rayvector), Nothing) = abs (rayvector ⋅ (toVector3 n))
+    raycontrib                            _ = 0
+
+    rayhits :: [ Float ]
+    rayhits = map raycontrib intersections
+
+    --debugstr = "p = " ++ show p ++ "\nn = " ++ show n
+
+    result :: Float
+    result = (sum rayhits) / (fromIntegral nRays)
+
+  in result --DT.trace debugstr result
+
+-- |Creates an infinite list of random generators from one.
+randomGenList :: RandomGen a => a -> [a]
+randomGenList rng =
+  let (g1, g2) = split rng
+  in g1 : randomGenList g2
+
+-- |Trace a scene in one color using simple ambient occlusion.
+ambientOcclusionSceneTrace
+  :: RandomGen a
+  => a                        -- ^ random generator for sampling ambient occlusion
+  -> Int                      -- ^ number of AO rays
+  -> Color                    -- ^ underlying color to shade everything in the scene
+  -> RasterParams             -- ^ parameters of the raster to shade
+  -> HasTransform Camera      -- ^ camera for the scene
+  -> HasTransform TracePrim   -- ^ primitive (entire scene) to trace
+  -> Raster                   -- ^ raster output
+ambientOcclusionSceneTrace rng nRays color rasp xcamera xscene = raster
+  where
+    raster :: Raster
+    raster = Raster width height pixels
+
+    pixels = map shadeIntersection (zip rngs objRaysAndIntersections)
+
+    shadeIntersection (pxrng, (ray,  Just i)) = mulColor (shadeAO pxrng nRays i obj) color
+    shadeIntersection _ = black
+
+    rngs = randomGenList rng
+
+    objRaysAndIntersections :: [ (Ray, Maybe Intersection) ]
+    objRaysAndIntersections = map faceforward (zip objRays objIntersections)
+
+    faceforward :: (Ray, Maybe Intersection) -> (Ray, Maybe Intersection)
+    faceforward (r, Nothing) = (r, Nothing)
+    faceforward (r@(Ray _ v), Just (Intersection p n)) =
+      let
+        nvec = toVector3 n
+        nvec' = if (v ⋅ nvec) < 0 then nvec else (nvec .* (-1.0))
+        n' = toNormal3 nvec'
+      in (r, Just (Intersection p n'))
+
+    objIntersections :: [ Maybe Intersection ]
+    objIntersections = map (tracePrimRay obj) objRays
+
+    objRays :: [ Ray ]
+    objRays = map (xform world2obj) worldRays
+      -- let x = xform (xformCompose cam2world world2obj)
+      -- in map x camRays
+
+    worldRays :: [ Ray ]
+    worldRays = map (xform cam2world) camRays
+
+    camRays :: [ Ray ]
+    camRays =
+      let getRay = rayForRasterCoord cam rasp
+      in map getRay rc
+
+    rc :: [ RasterCoord ]
+    rc = traverseRasterRowMajor width height
+
+    world2obj :: XForm
+    world2obj = xformInv obj2world
+
+    RasterParams width height  = rasp
+    HasTransform obj2world obj = xscene
+    HasTransform cam2world cam = xcamera
+
 
 -- | Test camera.
 testCamera :: HasTransform Camera
@@ -289,13 +461,23 @@ testCamera = withTransform (translate 0 0 (-5.0)) $ Camera 45.0 0.01
 testRasterParams :: RasterParams
 testRasterParams = RasterParams 400 300
 
--- | Test rendering the scene (as PPM bitmap).
+-- | Test rendering the scene.
 testRender :: Float -> Raster
 testRender angle = raster
   where
     testScene = withTransform (rotate angle (v3 0 0 1)) $ sphereTracePrim $ Sphere 1.0 300.0 (-0.7) (0.95)
     raster = dotShadeTrace white testRasterParams testCamera testScene
 
+-- |Test rendering the scene using raytraced ambient occlusion.
+testAORender :: RandomGen a
+             => a
+             -> Float
+             -> Raster
+testAORender rng angle = raster
+  where
+    testScene  = withTransform (rotate angle (v3 1 0 0)) $ sphereTracePrim $ Sphere 1.0 300.0 (-0.7) (0.95)
+    nAOSamples = 2048
+    raster     = ambientOcclusionSceneTrace rng nAOSamples white testRasterParams testCamera testScene
 
 ----------------------------------------------------------------------------------------------------
 -- JUICY PIXELS STUFF
