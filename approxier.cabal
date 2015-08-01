@@ -23,6 +23,7 @@ library
   hs-source-dirs:   src/lib
   exposed-modules:
       VecMath
+    , GPrim
 
 executable approxier
   default-language:    Haskell2010

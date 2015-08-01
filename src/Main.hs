@@ -2,22 +2,21 @@
 
 module Main where
 
-import VecMath                  (Cartesian3Tuple (xcomp, ycomp, zcomp, cartesian3Tuple, toVector3, toNormal3),
-                                 Normal3, Point3, Vector3, Ray (..), Transformable (xform), XForm, dot,
-                                 normalize, offsetPointAlongVector, p3, rotate, translate, v3,
-                                 xformCompose, xformInv, (⋅), (⨯), (.*))
+import VecMath       (Cartesian3Tuple (xcomp, ycomp, zcomp, cartesian3Tuple, toVector3, toNormal3),
+                      Normal3, Point3, Ray (..), Transformable (xform), Vector3, XForm, dot,
+                      normalize, offsetPointAlongVector, p3, rotate, translate, v3, xformInv, (.*),
+                      (⋅), (⨯))
 
-import Data.Word                (Word8)
+import GPrim         (Sphere (Sphere))
 
-import Codec.Picture            (DynamicImage (ImageRGB8), PixelRGB8 (PixelRGB8), generateFoldImage,
-                                 savePngImage)
+import Data.Word     (Word8)
 
-import Control.Concurrent.Async (mapConcurrently)
+import Codec.Picture (DynamicImage (ImageRGB8), PixelRGB8 (PixelRGB8), generateFoldImage,
+                      savePngImage)
 
-import System.Random            (RandomGen, getStdGen, randomRs, split)
+-- import Control.Concurrent.Async (mapConcurrently)
 
-import qualified Debug.Trace as DT (trace)
-
+import System.Random (RandomGen, getStdGen, randomRs, split)
 
 main :: IO ()
 main =
@@ -98,14 +97,6 @@ clamp minc maxc c
   | c > maxc  = maxc
   | otherwise = c
 
--- | Sphere.
-data Sphere = Sphere
-    { sphereRadius :: Float
-    , spherePhiMax :: Float
-    , spherezMin   :: Float
-    , spherezMax   :: Float
-    } deriving (Show)
-
 -- | Intersection with a primitive.
 data Intersection = Intersection
     { intersectionP :: Point3
@@ -152,7 +143,7 @@ quadratic a b c = if (discrim <= 0.0)
 
 -- | Traceable sphere.
 sphereTracePrim :: Sphere -> TracePrim
-sphereTracePrim (Sphere r phiMax zMin zMax) = TracePrim trace
+sphereTracePrim (Sphere r zMin zMax phiMax) = TracePrim trace
   where
     trace :: Ray -> Maybe Intersection
     trace ray = case quadratic a b c of
@@ -409,7 +400,7 @@ ambientOcclusionSceneTrace rng nRays color rasp xcamera xscene = raster
 
     pixels = map shadeIntersection (zip rngs objRaysAndIntersections)
 
-    shadeIntersection (pxrng, (ray,  Just i)) = mulColor (shadeAO pxrng nRays i obj) color
+    shadeIntersection (pxrng, (_,  Just i)) = mulColor (shadeAO pxrng nRays i obj) color
     shadeIntersection _ = black
 
     rngs = randomGenList rng
@@ -465,7 +456,7 @@ testRasterParams = RasterParams 400 300
 testRender :: Float -> Raster
 testRender angle = raster
   where
-    testScene = withTransform (rotate angle (v3 0 0 1)) $ sphereTracePrim $ Sphere 1.0 300.0 (-0.7) (0.95)
+    testScene = withTransform (rotate angle (v3 0 0 1)) $ sphereTracePrim $ Sphere 1.0 (-0.7) (0.95) 300.0
     raster = dotShadeTrace white testRasterParams testCamera testScene
 
 -- |Test rendering the scene using raytraced ambient occlusion.
@@ -475,7 +466,8 @@ testAORender :: RandomGen a
              -> Raster
 testAORender rng angle = raster
   where
-    testScene  = withTransform (rotate angle (v3 1 0 0)) $ sphereTracePrim $ Sphere 1.0 300.0 (-0.7) (0.95)
+    sphere     = Sphere 1.0 (-0.7) 0.95 300
+    testScene  = withTransform (rotate angle (v3 1 0 0)) $ sphereTracePrim $ sphere
     nAOSamples = 2048
     raster     = ambientOcclusionSceneTrace rng nAOSamples white testRasterParams testCamera testScene
 
