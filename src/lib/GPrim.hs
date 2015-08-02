@@ -46,7 +46,8 @@ module GPrim (
   , Disk (
       Disk
     , diskHeight
-    , diskRadius
+    , diskRadiusInner
+    , diskRadiusOuter
     , diskPhiMax
     )
   , Torus (
@@ -104,9 +105,10 @@ data Paraboloid = Paraboloid
 
 -- |Disk.
 data Disk = Disk
-  { diskHeight :: !Float
-  , diskRadius :: !Float
-  , diskPhiMax :: !Float
+  { diskHeight      :: !Float
+  , diskRadiusInner :: !Float
+  , diskRadiusOuter :: !Float
+  , diskPhiMax      :: !Float
   } deriving (Show)
 
 -- |Torus.

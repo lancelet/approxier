@@ -75,6 +75,9 @@ module VecMath (
   , Transformable(xform)
   -- * Rays
   , Ray(Ray)
+  -- * Conversions
+  , degrees
+  , radians
   ) where
 
 import Control.Exception (assert)
@@ -201,6 +204,7 @@ offsetPointAlongVector v d p = toPoint3 ((toVector3 p) + (v .* d))
 data XForm = XForm
              AMatrix  -- ^ transformation from -> to
              AMatrix  -- ^ inverse transformation to -> from
+             deriving (Show)
 
 -- |Invert a transformation.
 xformInv :: XForm -> XForm
@@ -295,6 +299,7 @@ data HVector = HVector {-# UNPACK #-} !Float !Float !Float !Float
 data AMatrix = AMatrix {-# UNPACK #-} !Float !Float !Float !Float
                                       !Float !Float !Float !Float
                                       !Float !Float !Float !Float
+                                      deriving (Show)
 
 instance Num AMatrix where
   (*) a b =
@@ -358,3 +363,14 @@ xformRay :: XForm -> Ray -> Ray
 xformRay x (Ray p v) = Ray (xformPoint3 x p) (xformVector3 x v)
 
 instance Transformable Ray where xform = xformRay
+
+----------------------------------------------------------------------------------------------------
+-- CONVERSIONS
+
+-- |Converts radians to degrees.
+degrees :: Float -> Float
+degrees r = 180.0 * r / pi
+
+-- |Converts degrees to radians.
+radians :: Float -> Float
+radians d = pi * d / 180.0
