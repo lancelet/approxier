@@ -52,7 +52,7 @@ tortrace tor ray =
                   rxy       = sqrt(x*x + y*y) - rr
                   theta     = atan2 z rxy
                   iN        = n3 ((cos phi)*(cos theta)) ((sin phi)*(cos theta)) (sin theta)
-                  is        = Intersection iP iN t (2 * eps * t)
+                  is        = Intersection iP iN undefined t (2 * eps * t)
               in Just is
 
 eps :: Float

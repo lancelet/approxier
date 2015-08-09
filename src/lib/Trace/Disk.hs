@@ -49,7 +49,7 @@ disktrace dsk ray =
       phi                       = if phi' < 0.0 then phi' + 2*pi else phi'
       phid                      = degrees phi
       isValid = (abs vz > vzmin) && (rayParamIsValid ray t) && (r >= ri) && (r <= ro) && (phid <= phiMax)
-      is                        = Intersection iP iN t (eps * t)
+      is                        = Intersection iP iN undefined t (eps * t)
   in if isValid then Just is else Nothing
 
 eps :: Float

@@ -70,7 +70,7 @@ isect hyp ray t =
       zMin            = min z1 z2
       zMax            = max z1 z2
       isValid         = (rayParamIsValid ray t) && (z >= zMin) && (z <= zMax) && (phid < phiMax)
-      is              = Intersection iP iN t (eps * t)
+      is              = Intersection iP iN undefined t (eps * t)
   in if isValid then Just is else Nothing
 
 -- |Finds the quadratic parameters of a hyperboloid.

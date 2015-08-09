@@ -9,6 +9,7 @@ module Trace (
       Intersection
     , isectP
     , isectN
+    , isectUV
     , isectRayParam
     , isectRayEpsilon
     )
@@ -35,7 +36,7 @@ import Data.Maybe    (catMaybes)
 import GPrim         (Sphere (sphereRadius, sphereZMin, sphereZMax, spherePhiMax))
 import VecMath       (Normal3, Point3, Transformable (xform), Vector3, XForm, degrees,
                       lengthSquared, p3, toNormal3, toPoint3, toVector3, xcomp, xformCompose,
-                      xformId, xformInv, ycomp, zcomp, (.*), (.*), (⋅))
+                      xformId, xformInv, ycomp, zcomp, (.*), (.*), (⋅), UVCoord)
 
 
 -- |Ray.
@@ -66,12 +67,13 @@ rayParamIsValid (Ray _ _ tmin tmax) t = (t >= tmin) && (t <= tmax)
 data Intersection = Intersection {
     isectP          :: Point3
   , isectN          :: Normal3
+  , isectUV         :: UVCoord
   , isectRayParam   :: Float
   , isectRayEpsilon :: Float
   }
 
 instance Transformable Intersection where
-  xform x (Intersection p n rp re) = Intersection (xform x p) (xform x n) rp re
+  xform x (Intersection p n uv rp re) = Intersection (xform x p) (xform x n) uv rp re
 
 -- |Intersections can be ordered according to the ray parameter.
 intersectionOrdering :: Intersection -> Intersection -> Ordering
@@ -255,7 +257,7 @@ sphereTrace sphere ray@(Ray p v _ _) =
         phi     = if (phi' < 0.0) then phi' + 2.0 * pi else phi'
         z       = zcomp isp
         isValid = (rayParamIsValid ray t) && (z >= zMin) && (z <= zMax) && (degrees phi <= phiMax)
-        isect   = Intersection isp isn t (quadricRayEpsilonFactor * t)
+        isect   = Intersection isp isn undefined t (quadricRayEpsilonFactor * t)
     f (t1, t2) = asum $ (map chk) [ t1, t2 ]  -- take the first
   in (quadratic qp) >>= f
 

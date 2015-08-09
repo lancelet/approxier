@@ -64,6 +64,8 @@ module VecMath (
   -- * Point3 operations
   , offsetPoint
   , offsetPointAlongVector
+  -- * UV coordinates
+  , UVCoord(UVCoord)
   -- * Transformations between spaces
   , XForm
   , xformInv
@@ -196,6 +198,12 @@ offsetPoint (Vector3 vx vy vz) (Point3 px py pz) = Point3 (px + vx) (py + vy) (p
 -- |Offsets a point by a given factor along a direction vector.
 offsetPointAlongVector :: Vector3 -> Float -> Point3 -> Point3
 offsetPointAlongVector v d p = toPoint3 ((toVector3 p) + (v .* d))
+
+----------------------------------------------------------------------------------------------------
+-- UV COORDINATES
+
+-- | UV parametric coordinates.
+data UVCoord = UVCoord {-# UNPACK #-} !Float !Float deriving (Show)
 
 ----------------------------------------------------------------------------------------------------
 -- TRANSFORMATIONS BETWEEN COORDINATE SPACES
