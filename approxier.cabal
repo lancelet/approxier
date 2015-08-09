@@ -1,3 +1,4 @@
+
 name:                approxier
 version:             0.1.0.0
 synopsis:            Experimental 3D renderer written in Haskell.
@@ -19,12 +20,15 @@ library
   default-language: Haskell2010
   ghc-options:      -Wall
   build-depends:
-      base >= 4.7 && < 4.8
+                base         >= 4.7     && < 4.8
+              , array        >= 0.5     && < 0.6
+              , JuicyPixels  >= 3.2.5.3 && < 3.3
   hs-source-dirs:   src/lib
   exposed-modules:
       Chess
     , VecMath
     , GPrim
+    , Raster                
     , Trace
     , Trace.Hyperboloid
     , Trace.Cylinder
@@ -37,9 +41,10 @@ executable approxier
   ghc-options:         -Wall -threaded -with-rtsopts=-N
   hs-source-dirs:      src
   build-depends:
-      base
-    , approxier
-    , async        >= 2.0.2   && < 2.1
-    , random       >= 1.1     && < 1.2
-    , JuicyPixels  >= 3.2.5.3 && < 3.3
+                base
+              , approxier
+              , array        >= 0.5     && < 0.6              
+              , async        >= 2.0.2   && < 2.1
+              , random       >= 1.1     && < 1.2
+
               

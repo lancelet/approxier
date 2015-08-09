@@ -77,9 +77,10 @@ module VecMath (
   , Transformable(xform)
   -- * Rays
   , Ray(Ray)
-  -- * Conversions
+  -- * Utilities
   , degrees
   , radians
+  , clamp
   ) where
 
 import Control.Exception (assert)
@@ -373,7 +374,7 @@ xformRay x (Ray p v) = Ray (xformPoint3 x p) (xformVector3 x v)
 instance Transformable Ray where xform = xformRay
 
 ----------------------------------------------------------------------------------------------------
--- CONVERSIONS
+-- UTILITIES
 
 -- |Converts radians to degrees.
 degrees :: Float -> Float
@@ -382,3 +383,13 @@ degrees r = 180.0 * r / pi
 -- |Converts degrees to radians.
 radians :: Float -> Float
 radians d = pi * d / 180.0
+
+-- |Clamps a floating-point value to a given range.
+clamp :: Float  -- ^ minimum allowed value
+      -> Float  -- ^ maximum allowed value
+      -> Float  -- ^ input value
+      -> Float  -- ^ output value after having been clamped
+clamp minx maxx x
+  | x < minx  = minx
+  | x > maxx  = maxx
+  | otherwise = x
