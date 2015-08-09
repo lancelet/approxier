@@ -4,7 +4,6 @@
 module Trace (
     Ray(Ray)
   , rayAt
-  , RayParametricRange(RayParametricRange)
   , rayParamIsValid
   , Intersection(
       Intersection
@@ -30,33 +29,35 @@ module Trace (
   , sphereTracePrim
   ) where
 
-import VecMath    (Normal3, Point3, Transformable (xform), Vector3, XForm, p3, xcomp, xformId,
-                   ycomp, zcomp, xformInv, lengthSquared, toVector3, toNormal3, (⋅), (.*), toPoint3,
-                   degrees, xformCompose, (.*))
-import GPrim      (Sphere(sphereRadius, sphereZMin, sphereZMax, spherePhiMax))
 import Data.Foldable (asum)
-import Data.List  (foldl', minimumBy)
-import Data.Maybe (catMaybes)
+import Data.List     (foldl', minimumBy)
+import Data.Maybe    (catMaybes)
+import GPrim         (Sphere (sphereRadius, sphereZMin, sphereZMax, spherePhiMax))
+import VecMath       (Normal3, Point3, Transformable (xform), Vector3, XForm, degrees,
+                      lengthSquared, p3, toNormal3, toPoint3, toVector3, xcomp, xformCompose,
+                      xformId, xformInv, ycomp, zcomp, (.*), (.*), (⋅))
 
 
 -- |Ray.
-data Ray = Ray {-# UNPACK #-} !Point3 !Vector3 deriving (Show)
+data Ray = Ray {-# UNPACK #-}
+           !Point3    -- ^ starting point for the ray
+           !Vector3   -- ^ vector in the direction of the ray
+           !Float     -- ^ minimum parametric value (units of ray vector length)
+           !Float     -- ^ maximum parametric value (units of ray vector length)
+         deriving (Show)
 
 instance Transformable Ray where
-  xform x (Ray p v) = Ray (xform x p) (xform x v)
+  xform x (Ray p v tmin tmax) = Ray (xform x p) (xform x v) tmin tmax
 
 -- |Evaluates a ray at a given parametric coordinate.
 rayAt :: Ray -> Float -> Point3
-rayAt (Ray p v) t =
+rayAt (Ray p v _ _) t =
   let pvec = toVector3 p
   in toPoint3 $ pvec + (v .* t)
 
--- |Parametric range for a ray.
-data RayParametricRange = RayParametricRange {-# UNPACK #-} !Float !Float deriving (Show)
-
 -- |Checks if a given ray parameter (t) falls inside the allowed range.
-rayParamIsValid :: RayParametricRange -> Float -> Bool
-rayParamIsValid (RayParametricRange tmin tmax) t = (t >= tmin) && (t <= tmax)
+rayParamIsValid :: Ray -> Float -> Bool
+rayParamIsValid (Ray _ _ tmin tmax) t = (t >= tmin) && (t <= tmax)
 
 ----------------------------------------------------------------------------------------------------
 -- INTERSECTION WITH A PRIMITIVE
@@ -154,21 +155,21 @@ data TracePrim = TracePrim
   { tpObj2World  :: XForm
   , tpObjBound   :: BoundingBox
   , tpWorldBound :: XForm -> BoundingBox
-  , tpTrace      :: RayParametricRange -> Ray -> Maybe Intersection
-  , tpTraceP     :: RayParametricRange -> Ray -> Bool
+  , tpTrace      :: Ray -> Maybe Intersection
+  , tpTraceP     :: Ray -> Bool
   }
 
 instance Show TracePrim where
   show (TracePrim ow ob _ _ _) = "TracePrim " ++ (show ow) ++ " " ++ (show ob) ++ " "
 
 -- |Trace a primitive in world coordinates.
-trace :: TracePrim -> RayParametricRange -> Ray -> Maybe Intersection
-trace tp rpr ray =
+trace :: TracePrim -> Ray -> Maybe Intersection
+trace tp ray =
   let
-    o2w = xform $ tpObj2World tp
-    w2o = xform $ xformInv $ tpObj2World tp
-    tpt = tpTrace tp
-  in fmap o2w $ tpt rpr $ w2o ray
+    object2world = (fmap . xform . tpObj2World) tp
+    world2object = (xform . xformInv . tpObj2World) tp
+    objTrace     = tpTrace tp
+  in (object2world . objTrace . world2object) ray
 
 -- |Find the world-space bounding box of a primitive.
 worldBoundingBox :: TracePrim -> BoundingBox
@@ -180,12 +181,9 @@ nullTracePrim = TracePrim
                 { tpObj2World  = xformId
                 , tpObjBound   = BoundingBox 0 0 0 0 0 0
                 , tpWorldBound = const $ BoundingBox 0 0 0 0 0 0
-                , tpTrace      = noTrace
-                , tpTraceP     = noTraceP
+                , tpTrace      = const Nothing
+                , tpTraceP     = const False
                 }
-  where
-    noTrace  _ _ = Nothing
-    noTraceP _ _ = False
 
 instance Transformable TracePrim where
   xform x tp =
@@ -210,8 +208,8 @@ brainDeadTraceGroup prims@(p:ps) = groupTracePrim
                      }
     objBound = foldl' bboxUnion (worldBoundingBox p) (map worldBoundingBox ps)
     worldBound x = xform x objBound
-    tracetp rpr ray  = firstIntersection $ map (\prim -> (trace prim) rpr ray) prims
-    tracetpP _ _ = undefined
+    tracetp ray  = firstIntersection $ map (\prim -> (trace prim) ray) prims
+    tracetpP _   = undefined
 
 ----------------------------------------------------------------------------------------------------
 -- TRACEABLE QUADRICS
@@ -240,8 +238,8 @@ sphereObjBoundingBox sphere =
   in  BoundingBox (-r) (-r) (-r) r r r
 
 -- |Traces a sphere. Ray is in object space.
-sphereTrace :: Sphere -> RayParametricRange -> Ray -> Maybe Intersection
-sphereTrace sphere rp ray@(Ray p v) =
+sphereTrace :: Sphere -> Ray -> Maybe Intersection
+sphereTrace sphere ray@(Ray p v _ _) =
   let
     radius = sphereRadius sphere
     zMin   = sphereZMin   sphere
@@ -256,15 +254,15 @@ sphereTrace sphere rp ray@(Ray p v) =
         phi'    = atan2 (ycomp isp) (xcomp isp)
         phi     = if (phi' < 0.0) then phi' + 2.0 * pi else phi'
         z       = zcomp isp
-        isValid = (rayParamIsValid rp t) && (z >= zMin) && (z <= zMax) && (degrees phi <= phiMax)
+        isValid = (rayParamIsValid ray t) && (z >= zMin) && (z <= zMax) && (degrees phi <= phiMax)
         isect   = Intersection isp isn t (quadricRayEpsilonFactor * t)
     f (t1, t2) = asum $ (map chk) [ t1, t2 ]  -- take the first
   in (quadratic qp) >>= f
 
 -- |Determines whether a ray hits a sphere. Ray is in object space.
-sphereTraceP :: Sphere -> RayParametricRange -> Ray -> Bool
-sphereTraceP sphere rp ray = maybe False (const True) (sphereTrace sphere rp ray)
-    
+sphereTraceP :: Sphere -> Ray -> Bool
+sphereTraceP sphere ray = maybe False (const True) (sphereTrace sphere ray)
+
 -- |Solves the real roots of the quadratic equation: a * t^2 + b * t + c = 0 for t.
 -- The smaller of the two roots is returned first in the tuple.
 quadratic :: (Float, Float, Float) -> Maybe (Float, Float)

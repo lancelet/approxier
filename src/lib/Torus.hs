@@ -1,28 +1,25 @@
 {-|
 
 -}
--- module Torus (
---   torusTracePrim
---   ) where
-module Torus where
+module Torus (
+   torusTracePrim
+   ) where
 
-import Control.Exception (assert)
+import GHC.Float    (double2Float, float2Double)
 
-import Debug.Trace (trace)
+import Data.Complex (Complex ((:+)), imagPart, realPart)
 
-import GHC.Float (float2Double, double2Float)
+import Data.List    (sort)
 
-import Data.Complex (Complex((:+)), realPart, imagPart)
+import VecMath      (XForm, cartesian3Tuple, n3, radians, toVector3, xform, (⋅))
 
-import Data.List (sort)
+import GPrim        (Torus (torusMajorRadius, torusMinorRadius, torusThetaMin, torusThetaMax,
+                            torusPhiMax))
 
-import VecMath (cartesian3Tuple, (⋅), XForm, xform, toVector3, degrees, n3, radians)
-
-import GPrim (Torus(torusMajorRadius, torusMinorRadius, torusThetaMin, torusThetaMax, torusPhiMax))
-
-import Trace (BoundingBox, RayParametricRange, Ray(Ray), Intersection(Intersection),
-             TracePrim(TracePrim, tpObj2World, tpObjBound, tpWorldBound, tpTrace, tpTraceP),
-             rayAt, quadricRayEpsilonFactor, rayParamIsValid)
+import Trace        (BoundingBox, Intersection (Intersection), Ray (Ray),
+                     TracePrim (TracePrim, tpObj2World, tpObjBound, tpWorldBound, tpTrace,
+                                tpTraceP),
+                     quadricRayEpsilonFactor, rayAt, rayParamIsValid)
 
 torusTracePrim :: XForm -> Torus -> TracePrim
 torusTracePrim o2w tor =
@@ -40,17 +37,16 @@ torusTracePrim o2w tor =
 torbox :: Torus -> BoundingBox
 torbox = undefined
 
-tortrace :: Torus -> RayParametricRange -> Ray -> Maybe Intersection
-tortrace tor rp ray =
+tortrace :: Torus -> Ray -> Maybe Intersection
+tortrace tor ray =
   let qp    = torqp tor ray
       roots = quartic qp
-      chk   = istvalid tor rp ray
+      chk   = istvalid tor ray
       ts    = filter chk roots
   in case ts of
      []    -> Nothing
      (t:_) -> let iP        = rayAt ray t
                   rr        = torusMajorRadius tor
-                  r         = torusMinorRadius tor
                   (x, y, z) = cartesian3Tuple iP
                   phi       = atan2 y x
                   rxy       = sqrt(x*x + y*y) - rr
@@ -62,28 +58,27 @@ tortrace tor rp ray =
 eps :: Float
 eps = quadricRayEpsilonFactor
 
-tortracep :: Torus -> RayParametricRange -> Ray -> Bool
-tortracep tor rp ray = maybe False (const True) $ tortrace tor rp ray
+tortracep :: Torus -> Ray -> Bool
+tortracep tor ray = maybe False (const True) $ tortrace tor ray
 
 normAngle :: Float -> Float
 normAngle x | x <      0 = normAngle $ x + 2*pi
             | x > (2*pi) = normAngle $ x - 2*pi  -- must be >2*pi, since 360 deg is used as max
             | otherwise  = x
 
-istvalid :: Torus -> RayParametricRange -> Ray -> Float -> Bool
-istvalid tor rp ray t =
+istvalid :: Torus -> Ray -> Float -> Bool
+istvalid tor ray t =
   let phiMax    = normAngle $ radians $ torusPhiMax tor
       thetaMin  = normAngle $ radians $ torusThetaMin tor
       thetaMax  = normAngle $ radians $ torusThetaMax tor
       thetaMax' = if (thetaMax < thetaMin) then thetaMax + 2*pi else thetaMax
       rr        = torusMajorRadius tor
-      r         = torusMinorRadius tor
       iP        = rayAt ray t
       (x, y, z) = cartesian3Tuple iP
       phi       = normAngle $ atan2 y x
       rxy       = sqrt(x*x + y*y) - rr
       theta     = normAngle $ atan2 z rxy
-  in (rayParamIsValid rp t) && (phi < phiMax) && (theta >= thetaMin) && (theta <= thetaMax')
+  in (rayParamIsValid ray t) && (phi < phiMax) && (theta >= thetaMin) && (theta <= thetaMax')
 
 -- | Computes quartic coefficients for a torus - ray intersection.
 --
@@ -95,7 +90,7 @@ torqp tor ray =
     -- inputs
     rr          = torusMajorRadius tor
     r           = torusMinorRadius tor
-    Ray p v     = ray
+    Ray p v _ _ = ray
     pv          = toVector3 p
     (px, py, _) = cartesian3Tuple p
     (vx, vy, _) = cartesian3Tuple v
@@ -118,11 +113,6 @@ torqp tor ray =
     (c4, c3, c2, c1, c0)
 
 type CDouble = Complex Double
-
-checkQuarticSolution :: (Float, Float, Float, Float, Float) -> Float -> Bool
-checkQuarticSolution (c4, c3, c2, c1, c0) t =
-  let r = c4*t**4 + c3*t**3 + c2*t**2 + c1*t + c0
-  in (abs r) < 1e-10
 
 -- | Computes the real roots of a quartic (zero to four real roots).
 --

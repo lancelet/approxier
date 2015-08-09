@@ -11,7 +11,7 @@ import VecMath (Cartesian3Tuple(cartesian3Tuple), v3, toVector3, toNormal3,
 
 import GPrim (Hyperboloid(hyperboloidPoint1, hyperboloidPoint2, hyperboloidPhiMax))
 
-import Trace (Ray(Ray), RayParametricRange, quadratic, rayAt,
+import Trace (Ray(Ray), quadratic, rayAt,
               Intersection(Intersection), rayParamIsValid, quadricRayEpsilonFactor, BoundingBox,
               TracePrim(TracePrim, tpObj2World, tpObjBound, tpWorldBound, tpTrace, tpTraceP))
 
@@ -31,13 +31,13 @@ hyperboloidTracePrim o2w hyp =
 hypbbox :: Hyperboloid -> BoundingBox
 hypbbox = undefined
 
-hyptrace :: Hyperboloid -> RayParametricRange -> Ray -> Maybe Intersection
-hyptrace hyp rp ray =
-  let isectFn = isect hyp rp ray
+hyptrace :: Hyperboloid -> Ray -> Maybe Intersection
+hyptrace hyp ray =
+  let isectFn = isect hyp ray
   in takeFirstIntersection $ mapMaybeTuple isectFn $ quadratic $ hypqp hyp ray
 
-hyptracep :: Hyperboloid -> RayParametricRange -> Ray -> Bool
-hyptracep hyp rp ray = maybe False (const True) $ hyptrace hyp rp ray
+hyptracep :: Hyperboloid -> Ray -> Bool
+hyptracep hyp ray = maybe False (const True) $ hyptrace hyp ray
 
 mapMaybeTuple :: (a -> Maybe b) -> Maybe (a, a) -> (Maybe b, Maybe b)
 mapMaybeTuple f (Just (x, y)) = (f x, f y)
@@ -48,8 +48,8 @@ takeFirstIntersection (l@(Just _),          _) = l
 takeFirstIntersection (         _, r@(Just _)) = r
 takeFirstIntersection                        _ = Nothing
 
-isect :: Hyperboloid -> RayParametricRange -> Ray -> Float -> Maybe Intersection
-isect hyp rp ray t =
+isect :: Hyperboloid -> Ray -> Float -> Maybe Intersection
+isect hyp ray t =
   let p1              = hyperboloidPoint1 hyp
       p2              = hyperboloidPoint2 hyp
       (_, _, z1)      = cartesian3Tuple p1
@@ -69,7 +69,7 @@ isect hyp rp ray t =
       iN              = toNormal3 $ dpduu ⨯ dpdv
       zMin            = min z1 z2
       zMax            = max z1 z2
-      isValid         = (rayParamIsValid rp t) && (z >= zMin) && (z <= zMax) && (phid < phiMax)
+      isValid         = (rayParamIsValid ray t) && (z >= zMin) && (z <= zMax) && (phid < phiMax)
       is              = Intersection iP iN t (eps * t)
   in if isValid then Just is else Nothing
 
@@ -77,7 +77,7 @@ isect hyp rp ray t =
 hypqp :: Hyperboloid -> Ray -> (Float, Float, Float)
 hypqp hyp ray =
   let (a, c)       = hypip hyp
-      Ray p v      = ray
+      Ray p v _ _  = ray
       (px, py, pz) = cartesian3Tuple $ p
       (vx, vy, vz) = cartesian3Tuple $ v
       aa           = a*(vx*vx + vy*vy) - c*vz*vz

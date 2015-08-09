@@ -5,14 +5,13 @@ module Disk (
   diskTracePrim
   ) where
 
-import VecMath (Cartesian3Tuple(cartesian3Tuple), degrees, XForm, xform, n3)
+import VecMath (Cartesian3Tuple (cartesian3Tuple), XForm, degrees, n3, xform)
 
-import GPrim (Disk(diskHeight, diskRadiusInner, diskRadiusOuter, diskPhiMax))
+import GPrim   (Disk (diskHeight, diskRadiusInner, diskRadiusOuter, diskPhiMax))
 
-import Trace (BoundingBox, TracePrim(TracePrim, tpObj2World, tpObjBound, tpWorldBound, tpTrace,
-                                     tpTraceP),
-             Ray(Ray), RayParametricRange(RayParametricRange), rayAt, quadricRayEpsilonFactor,
-             Intersection(Intersection), rayParamIsValid)
+import Trace   (BoundingBox, Intersection (Intersection), Ray (Ray),
+                TracePrim (TracePrim, tpObj2World, tpObjBound, tpWorldBound, tpTrace, tpTraceP),
+                quadricRayEpsilonFactor, rayAt, rayParamIsValid)
 
 diskTracePrim :: XForm -> Disk -> TracePrim
 diskTracePrim o2w dsk =
@@ -31,12 +30,11 @@ diskTracePrim o2w dsk =
 diskbbox :: Disk -> BoundingBox
 diskbbox = undefined
 
-disktrace :: Disk -> RayParametricRange -> Ray -> Maybe Intersection
-disktrace dsk rp ray =
-  let Ray p v                   = ray
+disktrace :: Disk -> Ray -> Maybe Intersection
+disktrace dsk ray =
+  let Ray p v _ tmax            = ray
       (_, _, pz)                = cartesian3Tuple p
       (_, _, vz)                = cartesian3Tuple v
-      RayParametricRange _ tmax = rp
       h                         = diskHeight      dsk
       ri                        = diskRadiusInner dsk
       ro                        = diskRadiusOuter dsk
@@ -50,12 +48,12 @@ disktrace dsk rp ray =
       phi'                      = atan2 y x
       phi                       = if phi' < 0.0 then phi' + 2*pi else phi'
       phid                      = degrees phi
-      isValid = (abs vz > vzmin) && (rayParamIsValid rp t) && (r >= ri) && (r <= ro) && (phid <= phiMax)
+      isValid = (abs vz > vzmin) && (rayParamIsValid ray t) && (r >= ri) && (r <= ro) && (phid <= phiMax)
       is                        = Intersection iP iN t (eps * t)
   in if isValid then Just is else Nothing
 
 eps :: Float
 eps = quadricRayEpsilonFactor
 
-disktracep :: Disk -> RayParametricRange -> Ray -> Bool
-disktracep dsk rp ray = maybe False (const True) $ disktrace dsk rp ray
+disktracep :: Disk -> Ray -> Bool
+disktracep dsk ray = maybe False (const True) $ disktrace dsk ray

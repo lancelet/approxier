@@ -7,12 +7,12 @@ import VecMath       (Cartesian3Tuple (toVector3, toNormal3),
                       normalize, offsetPointAlongVector, p3, rotate, translate, v3, (.*),
                       (⋅), (⨯), radians, degrees, xformId, xformCompose)
 
-import GPrim         (Sphere (Sphere), Hyperboloid(Hyperboloid), Torus(Torus))
+import GPrim         (Hyperboloid(Hyperboloid), Torus(Torus))
 
 import Chess         (pawn)
 
-import Trace         (TracePrim, trace, sphereTracePrim, Intersection(isectP, isectN),
-                      RayParametricRange(RayParametricRange), Ray(Ray))
+import Trace         (TracePrim, trace, Intersection(isectP, isectN),
+                      Ray(Ray))
 
 import Hyperboloid  (hyperboloidTracePrim)
 
@@ -120,7 +120,7 @@ dotShade
     -> Ray           -- ^ incoming intersection ray
     -> Intersection  -- ^ intersection of the ray and the surface
     -> Color         -- ^ computed `dotShade` color
-dotShade inColor (Ray _ nr) isect = c
+dotShade inColor (Ray _ nr _ _) isect = c
   where
     ni = isectN isect
     c = mulColor (abs dp) inColor
@@ -134,12 +134,12 @@ data Camera = Camera
     }
 
 -- |Finds the parametric range for rays shot from a given camera (assuming unit length ray vector).
-rayParametricRangeForCamera :: Camera -> RayParametricRange
+rayParametricRangeForCamera :: Camera -> (Float, Float)
 rayParametricRangeForCamera camera =
   let
     hither = cameraHither camera
     yon    = cameraYon    camera
-  in RayParametricRange hither yon
+  in (hither, yon)
 
 -- | Raster parameters.
 data RasterParams = RasterParams
@@ -213,7 +213,7 @@ rasterToNDC (RasterParams w h) (RasterCoord rx ry) = NDC ndcx ndcy
 -- | Computes a ray for the given raster coordinates.
 --   The ray starts at the hither plane.
 rayForRasterCoord :: Camera -> RasterParams -> RasterCoord -> Ray
-rayForRasterCoord camera rasterParams rasterCoord = Ray p v
+rayForRasterCoord camera rasterParams rasterCoord = Ray p v hither yon
   where
     v = toVector3 (toNormal3 p)
     p = p3 rayx rayy hither
@@ -224,7 +224,7 @@ rayForRasterCoord camera rasterParams rasterCoord = Ray p v
     f2X = fovX / 2.0
     f2Y = fovY / 2.0
     fovY = ((fromIntegral h) / (fromIntegral w)) * fovX
-    Camera fovX hither _ = camera
+    Camera fovX hither yon = camera
     NDC ndcx ndcy = rasterToNDC rasterParams rasterCoord
     RasterParams w h = rasterParams
 
@@ -248,7 +248,7 @@ dotShadeTrace color rasterParams cameraWithTransform tracePrim = raster
         Nothing    -> black
 
     intersections :: [Maybe Intersection]
-    intersections = map (trace tracePrim rp) worldRays
+    intersections = map (trace tracePrim) worldRays
     rp = rayParametricRangeForCamera camera
 
     worldRays :: [Ray]
@@ -284,7 +284,7 @@ sampleHemisphereUniformly :: RandomGen a
 sampleHemisphereUniformly rng nRays p n = rays -- [ Ray p (toVector3 n) ] -- rays
   where
     rays :: [ Ray ]
-    rays = map (\v -> Ray p v) viewVecs
+    rays = map (\v -> Ray p v 0.001 1e5) viewVecs
 
     viewVecs :: [ Vector3 ]
     viewVecs = map (xform viewVectorRot) rawViewVecs
@@ -324,7 +324,7 @@ shadeAO :: RandomGen a
         -> Float          -- ^ the visibility of the scene
 shadeAO rng nRays (hither, yon) isect tracePrim =
   let
-    trace' = trace tracePrim (RayParametricRange hither yon)
+    trace' = trace tracePrim
     p = isectP isect
     n = isectN isect
     
@@ -332,14 +332,14 @@ shadeAO rng nRays (hither, yon) isect tracePrim =
     rays = map nudge (sampleHemisphereUniformly rng nRays p n)
 
     nudge :: Ray -> Ray
-    nudge (Ray pr vr) = Ray (offsetPointAlongVector vr 0.05 pr) vr
+    nudge (Ray pr vr tmin tmax) = Ray (offsetPointAlongVector vr 0.05 pr) vr tmin tmax
 
     intersections :: [ (Ray, Maybe Intersection) ]
     intersections = zip rays (map trace' rays)
 
     raycontrib :: (Ray, Maybe Intersection) -> Float
-    raycontrib ((Ray _ rayvector), Nothing) = abs (rayvector ⋅ (toVector3 n))
-    raycontrib                            _ = 0
+    raycontrib ((Ray _ rayvector _ _), Nothing) = abs (rayvector ⋅ (toVector3 n))
+    raycontrib                                _ = 0
 
     rayhits :: [ Float ]
     rayhits = map raycontrib intersections
@@ -384,7 +384,7 @@ ambientOcclusionSceneTrace rng nRays color rasp xcamera scene = raster
 
     faceforward :: (Ray, Maybe Intersection) -> (Ray, Maybe Intersection)
     faceforward (r, Nothing) = (r, Nothing)
-    faceforward (r@(Ray _ v), Just isect) =
+    faceforward (r@(Ray _ v _ _), Just isect) =
       let
         n = isectN isect
         nvec = toVector3 n
@@ -393,8 +393,8 @@ ambientOcclusionSceneTrace rng nRays color rasp xcamera scene = raster
       in (r, Just $ isect { isectN = n' })
 
     intersections :: [ Maybe Intersection ]
-    intersections = map (trace scene rp) worldRays
-    rp = rayParametricRangeForCamera cam
+    intersections = map (trace scene) worldRays
+    (mint, maxt) = rayParametricRangeForCamera cam
 
     worldRays :: [ Ray ]
     worldRays = map (xform cam2world) camRays
@@ -422,7 +422,7 @@ testAORender rng angle = raster
     testScene  = xform (xformCompose transobj rotobj) pawn
     testCam    = withTransform (translate 0 0 (-120)) $ Camera 45.0 0.01 100000.0
     testRP     = RasterParams 800 600
-    nAOSamples = 512
+    nAOSamples = 32
     raster     = ambientOcclusionSceneTrace rng nAOSamples white testRP testCam testScene
 
 -- |Test rendering a hyperboloid.
