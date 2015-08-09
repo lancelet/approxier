@@ -1,18 +1,36 @@
 {-|
 
 -}
-module Raster where
+module Raster (
+    Color(Color)
+  , RasterFloatCoord(RasterFloatCoord)
+  , RasterPxCoord(RasterPxCoord)
+  , Raster(
+        Raster
+      , rasterWidth
+      , rasterHeight
+      , rasterPixels
+    )
+  , fromRowMajorPixelList
+  , black
+  , white
+  , mulColor
+  , avgColor
+  , saveRasterPng
+  , imageColorToColor
+  ) where
 
-import Data.Array (Array, (!))
+import Data.Array    (Array, (!), listArray, ixmap)
 
-import GHC.Arr (Ix(range, unsafeIndex, inRange, unsafeRangeSize))
+import GHC.Arr       (Ix (range, unsafeIndex, inRange, unsafeRangeSize))
 
-import Data.Word (Word8)
+import Data.List     (foldl')
 
-import Codec.Picture (DynamicImage(ImageRGB8), PixelRGB8(PixelRGB8), generateImage,
-                      savePngImage)
+import Data.Word     (Word8)
 
-import VecMath   (clamp)
+import Codec.Picture (DynamicImage (ImageRGB8), PixelRGB8 (PixelRGB8), generateImage, savePngImage)
+
+import VecMath       (clamp)
 
 ----------------------------------------------------------------------------------------------------
 -- FLOATING-POINT COLOR
@@ -29,6 +47,19 @@ white = Color 1 1 1
 -- | Scale all components of a color by a scalar.
 mulColor :: Float -> Color -> Color
 mulColor x (Color r g b) = Color (x*r) (x*g) (x*b)
+
+-- | Adds colors component-wise.
+addColor :: Color -> Color -> Color
+addColor (Color r1 g1 b1) (Color r2 g2 b2) = Color (r1+r2) (g1+g2) (b1+b2)
+
+-- | Average color.
+avgColor :: [Color] -> Color
+avgColor cs =
+  let f :: (Color, Int) -> Color -> (Color, Int)
+      f (c, n) ci   = (addColor c ci, n + 1)
+      (csum, count) = foldl' f (black, 0) cs
+      countf        = (fromIntegral count) :: Float
+  in mulColor (1 / countf) csum
 
 ----------------------------------------------------------------------------------------------------
 -- COLOR FOR INPUT / OUTPUT
@@ -55,6 +86,19 @@ data Raster = Raster { rasterWidth  :: !Int
                      , rasterHeight :: !Int
                      , rasterPixels :: Array RasterPxCoord Color
                      }
+
+fromRowMajorPixelList :: (Int, Int)
+                      -> [Color]
+                      -> Raster
+fromRowMajorPixelList (w, h) pxs =
+  let bound  = (RasterPxCoord 0 0, RasterPxCoord (h-1) (w-1))
+      rp     = listArray bound pxs
+      bound' = (RasterPxCoord 0 0, RasterPxCoord (w-1) (h-1))
+      xp (RasterPxCoord x y) = RasterPxCoord y x
+      rpt   = ixmap bound' xp rp
+  in Raster { rasterWidth  = w
+            , rasterHeight = h
+            , rasterPixels = rpt }
 
 data RasterPxCoord = RasterPxCoord {-# UNPACK #-} !Int !Int deriving (Eq, Ord, Show)
 

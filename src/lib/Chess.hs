@@ -5,20 +5,20 @@ module Chess (
     pawn
   ) where
 
-import GPrim             (Cylinder (Cylinder), Disk (Disk), Hyperboloid (Hyperboloid),
-                          Sphere (Sphere), Torus (Torus))
-import Trace             (TracePrim, brainDeadTraceGroup, sphereTracePrim)
-import Trace.Cylinder    (cylinderTracePrim)
-import Trace.Disk        (diskTracePrim)
-import Trace.Hyperboloid (hyperboloidTracePrim)
-import Trace.Torus       (torusTracePrim)
-import VecMath           (Point3, Transformable (xform), p3, scale, translate, xformId)
+import Scene              (SceneObject, mkSceneObject, mkSimpleSceneObjectList)
+import Shapes.Cylinder    (Cylinder (Cylinder), traceableCylinder)
+import Shapes.Disk        (Disk (Disk), traceableDisk)
+import Shapes.Hyperboloid (Hyperboloid (Hyperboloid), traceableHyperboloid)
+import Shapes.Sphere      (Sphere (Sphere), traceableSphere)
+import Shapes.Torus       (Torus (Torus), traceableTorus)
+import Trace              (Traceable)
+import VecMath            (Point3, p3, scale, translate, xform, xformId)
 
--- |A pawn, 50 units high, oriented along the z-axis.
-pawn :: TracePrim
+-- -- |A pawn, 50 units high, oriented along the z-axis.
+pawn :: SceneObject
 pawn =
   let s = (50.0 / 51.0)
-  in xform (scale s s s) $ brainDeadTraceGroup
+  in xform (scale s s s) $ mkSimpleSceneObjectList xformId Nothing
        [ -- felt base
          dsk 0 0 13.8
        , dz 0.4 $ tor 13.8 0.4 (-90) 0
@@ -52,20 +52,40 @@ pawn =
        , dz 43 $ sph 8 (-7.13) 8
        ]
 
-dsk :: Float -> Float -> Float -> TracePrim
-dsk h ri ro = diskTracePrim xformId $ Disk h ri ro 360
+dz :: Float -> SceneObject -> SceneObject
+dz z = xform $ translate 0 0 z
 
-dz :: Float -> TracePrim -> TracePrim
-dz z = xform (translate 0 0 z)
+dsk :: Float        -- ^ height
+    -> Float        -- ^ inner radius
+    -> Float        -- ^ outer radius
+    -> SceneObject
+dsk h ri ro = so $ traceableDisk $ Disk h ri ro 360
 
-cyl :: Float -> Float -> Float -> TracePrim
-cyl r zMin zMax = cylinderTracePrim xformId $ Cylinder r zMin zMax 360
+cyl :: Float        -- ^ radius
+    -> Float        -- ^ zmin
+    -> Float        -- ^ zmax
+    -> SceneObject
+cyl r zmin zmax = so $ traceableCylinder $ Cylinder r zmin zmax 360
 
-tor :: Float -> Float -> Float -> Float -> TracePrim
-tor minor major thetamin thetamax = torusTracePrim xformId $ Torus minor major thetamin thetamax 360
+tor :: Float       -- ^ minor radius
+    -> Float       -- ^ major radius
+    -> Float       -- ^ theta min
+    -> Float       -- ^ theta max
+    -> SceneObject
+tor minor major thetamin thetamax = so $ traceableTorus $ Torus major minor thetamin thetamax 360
 
-hyp :: Point3 -> Point3 -> TracePrim
-hyp p1 p2 = hyperboloidTracePrim xformId $ Hyperboloid p1 p2 360
 
-sph :: Float -> Float -> Float -> TracePrim
-sph r zMin zMax = sphereTracePrim xformId $ Sphere r zMin zMax 360
+hyp :: Point3       -- ^ hyperboloid point 1
+    -> Point3       -- ^ hyperboloid point 2
+    -> SceneObject
+hyp p1 p2 = so $ traceableHyperboloid $ Hyperboloid p1 p2 360
+
+sph :: Float        -- ^ radius
+    -> Float        -- ^ zmin
+    -> Float        -- ^ zmax
+    -> SceneObject
+sph r zmin zmax = so $ traceableSphere $ Sphere r zmin zmax 360
+
+-- | Makes a scene object, with defaults for this scene.
+so :: Traceable -> SceneObject
+so = mkSceneObject xformId Nothing
