@@ -26,10 +26,10 @@ library
     , VecMath
     , GPrim
     , Trace
-    , Hyperboloid
-    , Cylinder
-    , Disk
-    , Torus
+    , Trace.Hyperboloid
+    , Trace.Cylinder
+    , Trace.Disk
+    , Trace.Torus
 
 executable approxier
   default-language:    Haskell2010

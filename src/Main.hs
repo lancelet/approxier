@@ -2,30 +2,29 @@
 
 module Main where
 
-import VecMath       (Cartesian3Tuple (toVector3, toNormal3),
-                      Normal3, Point3, Transformable (xform), Vector3, XForm, dot,
-                      normalize, offsetPointAlongVector, p3, rotate, translate, v3, (.*),
-                      (⋅), (⨯), radians, degrees, xformId, xformCompose)
+import VecMath           (Cartesian3Tuple (toVector3, toNormal3), Normal3, Point3,
+                          Transformable (xform), Vector3, XForm, degrees, dot, normalize,
+                          offsetPointAlongVector, p3, radians, rotate, translate, v3, xformCompose,
+                          xformId, (.*), (⋅), (⨯))
 
-import GPrim         (Hyperboloid(Hyperboloid), Torus(Torus))
+import GPrim             (Hyperboloid (Hyperboloid), Torus (Torus))
 
-import Chess         (pawn)
+import Chess             (pawn)
 
-import Trace         (TracePrim, trace, Intersection(isectP, isectN),
-                      Ray(Ray))
+import Trace             (Intersection (isectP, isectN), Ray (Ray), TracePrim, trace)
 
-import Hyperboloid  (hyperboloidTracePrim)
+import Trace.Hyperboloid (hyperboloidTracePrim)
 
-import Data.Word     (Word8)
+import Data.Word         (Word8)
 
-import Codec.Picture (DynamicImage (ImageRGB8), PixelRGB8 (PixelRGB8), generateFoldImage,
-                      savePngImage)
+import Codec.Picture     (DynamicImage (ImageRGB8), PixelRGB8 (PixelRGB8), generateFoldImage,
+                          savePngImage)
 
-import Torus (torusTracePrim)
+import Trace.Torus       (torusTracePrim)
 
 -- import Control.Concurrent.Async (mapConcurrently)
 
-import System.Random (RandomGen, getStdGen, randomRs, split)
+import System.Random     (RandomGen, getStdGen, randomRs, split)
 
 main :: IO ()
 main =
@@ -327,7 +326,7 @@ shadeAO rng nRays (hither, yon) isect tracePrim =
     trace' = trace tracePrim
     p = isectP isect
     n = isectN isect
-    
+
     rays :: [ Ray ]
     rays = map nudge (sampleHemisphereUniformly rng nRays p n)
 

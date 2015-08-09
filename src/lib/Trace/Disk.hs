@@ -1,7 +1,7 @@
 {-|
 
 -}
-module Disk (
+module Trace.Disk (
   diskTracePrim
   ) where
 

@@ -2,17 +2,17 @@
 
 -}
 
-module Cylinder (
+module Trace.Cylinder (
   cylinderTracePrim
   ) where
 
-import Hyperboloid (hyperboloidTracePrim)
+import GPrim             (Cylinder (Cylinder), Hyperboloid (Hyperboloid))
 
-import GPrim (Cylinder(Cylinder), Hyperboloid(Hyperboloid))
+import VecMath           (XForm, p3)
 
-import VecMath (XForm, p3)
+import Trace             (TracePrim)
 
-import Trace (TracePrim)
+import Trace.Hyperboloid (hyperboloidTracePrim)
 
 cylinderTracePrim :: XForm -> Cylinder -> TracePrim
 cylinderTracePrim obj2World (Cylinder radius zMin zMax phiMax) =

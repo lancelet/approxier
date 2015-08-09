@@ -1,7 +1,7 @@
 {-|
 
 -}
-module Hyperboloid (
+module Trace.Hyperboloid (
   hyperboloidTracePrim
   ) where
 

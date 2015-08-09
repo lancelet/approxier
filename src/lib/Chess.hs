@@ -5,14 +5,14 @@ module Chess (
     pawn
   ) where
 
-import GPrim (Sphere(Sphere), Hyperboloid(Hyperboloid), Cylinder(Cylinder), Disk(Disk),
-              Torus(Torus))
-import VecMath (Point3, p3, scale, translate, Transformable(xform), xformId)
-import Trace (TracePrim, brainDeadTraceGroup, sphereTracePrim, nullTracePrim)
-import Hyperboloid (hyperboloidTracePrim)
-import Cylinder (cylinderTracePrim)
-import Disk (diskTracePrim)
-import Torus (torusTracePrim)
+import GPrim             (Cylinder (Cylinder), Disk (Disk), Hyperboloid (Hyperboloid),
+                          Sphere (Sphere), Torus (Torus))
+import Trace             (TracePrim, brainDeadTraceGroup, sphereTracePrim)
+import Trace.Cylinder    (cylinderTracePrim)
+import Trace.Disk        (diskTracePrim)
+import Trace.Hyperboloid (hyperboloidTracePrim)
+import Trace.Torus       (torusTracePrim)
+import VecMath           (Point3, Transformable (xform), p3, scale, translate, xformId)
 
 -- |A pawn, 50 units high, oriented along the z-axis.
 pawn :: TracePrim

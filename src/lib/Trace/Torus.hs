@@ -1,7 +1,7 @@
 {-|
 
 -}
-module Torus (
+module Trace.Torus (
    torusTracePrim
    ) where
 
